@@ -8,7 +8,9 @@ module.exports = {
     provider: 'IBM',
     features: {
       intentResolution: true,
-      intentConfidenceScore: true
+      intentConfidenceScore: true,
+      audioInput: true,
+      supportedFileExtensions: ['.wav', '.pcm', '.m4a', '.flac', '.riff', '.wma', '.aac', '.ogg', '.oga', '.mp3', '.amr']
     },
     capabilities: [
       {

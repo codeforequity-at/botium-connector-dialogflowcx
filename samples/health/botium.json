@@ -1,0 +1,22 @@
+{
+  "botium": {
+    "Capabilities": {
+      "PROJECTNAME": "Google Assistant Sample",
+      "CONTAINERMODE": "dialogflowcx",
+      "DIALOGFLOWCX_PROJECT_ID": "dialogflowcx-demo-302308",
+      "DIALOGFLOWCX_AGENT_ID": "f17dc3a1-c93d-41f9-ba00-5a752750f380",
+      "DIALOGFLOWCX_LOCATION": "europe-west2",
+      "DIALOGFLOWCX_CLIENT_EMAIL": "",
+      "DIALOGFLOWCX_PRIVATE_KEY": "",
+      "USER_INPUTS": [
+        {
+          "ref": "MEDIA",
+          "src": "MediaInput",
+          "args": {
+            "downloadMedia": true
+          }
+        }
+      ]
+    }
+  }
+}

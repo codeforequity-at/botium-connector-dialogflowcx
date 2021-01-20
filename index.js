@@ -4,24 +4,27 @@ module.exports = {
   PluginVersion: 1,
   PluginClass: BotiumConnectorDialogflowCX,
   PluginDesc: {
-    name: 'IBM Watson Assistant',
-    provider: 'IBM',
+    name: 'Google Dialogflow CX',
+    provider: 'Google',
     features: {
       intentResolution: true,
       intentConfidenceScore: true,
       audioInput: true,
       supportedFileExtensions: ['.wav', '.pcm', '.m4a', '.flac', '.riff', '.wma', '.aac', '.ogg', '.oga', '.mp3', '.amr']
     },
+    helperText: 'You have to download your <a href="https://cloud.google.com/docs/authentication/getting-started" target="_blank">Google credentials</a> for accessing your Dialogflow CX Agent first. Project Id, Agent Id and Location can be found in the <a href="https://cloud.google.com/dialogflow/cx/docs/quick/api" target="_blank">Dialogflow CX Console</a>.',
     capabilities: [
       {
         name: 'DIALOGFLOWCX_PROJECT_ID',
         label: 'Project Id',
+        description: 'You can find this in the Dialogflow CX Console',
         type: 'string',
         required: true
       },
       {
         name: 'DIALOGFLOWCX_LOCATION',
         label: 'Location',
+        description: 'You can find this in the Dialogflow CX Console',
         type: 'choice',
         required: true,
         choices: [
@@ -37,24 +40,28 @@ module.exports = {
       {
         name: 'DIALOGFLOWCX_AGENT_ID',
         label: 'Agent Id',
+        description: 'You can find this in the Dialogflow CX Console',
         type: 'string',
         required: true
       },
       {
         name: 'DIALOGFLOWCX_ENVIRONMENT',
         label: 'Environment',
+        description: 'Dialogflow publishing environment name',
         type: 'string',
         required: false
       },
       {
         name: 'DIALOGFLOWCX_CLIENT_EMAIL',
         label: 'Credentials Client Email',
+        description: 'You can find this in the Google Cloud credentials file',
         type: 'string',
         required: false
       },
       {
         name: 'DIALOGFLOWCX_PRIVATE_KEY',
         label: 'Credentials Private Key',
+        description: 'You can find this in the Google Cloud credentials file',
         type: 'secret',
         required: false
       },

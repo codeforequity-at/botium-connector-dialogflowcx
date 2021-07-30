@@ -109,8 +109,14 @@ class BotiumConnectorDialogflowCX {
       .then((responses) => {
         const response = responses[0]
 
+        if (response.queryResult.diagnosticInfo) {
+          response.queryResult.diagnosticInfo = struct.decode(response.queryResult.diagnosticInfo)
+        }
         if (response.queryResult.parameters) {
           response.queryResult.parameters = struct.decode(response.queryResult.parameters)
+        }
+        if (response.queryResult.match && response.queryResult.match.parameters) {
+          response.queryResult.match.parameters = struct.decode(response.queryResult.match.parameters)
         }
         for (const responseMessage of response.queryResult.responseMessages) {
           if (responseMessage.payload) {

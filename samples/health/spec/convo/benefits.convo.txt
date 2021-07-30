@@ -1,0 +1,44 @@
+benefits
+
+#me
+hello
+
+#bot
+Hi, I'm your virtual healthcare agent. I can help answer your healthcare claims questions, understand your benefits, and find a doctor. How can I assist you today?
+INTENT Default Welcome Intent
+
+#me
+benefits
+
+#bot
+I am happy to help you understand your benefits.
+INTENT healthcare.initialize_benefits
+
+#bot
+What is your member ID?
+INTENT healthcare.initialize_benefits
+
+#me
+123ABC9
+
+#bot
+What is your date of birth? You can say the date as October 22 ,1982.
+
+#me
+October 22, 1982
+
+#bot
+Who is the primary subscriber?
+
+#me
+me
+
+#bot
+Is there a particular part of your benefits you’d like to hear about? You can ask me about your deductible, co-insurance, out of pocket maximums, and covered services.
+
+#me
+no
+
+#bot
+Okay, glad I could help. A transcript of our conversation will be stored in the messages section of your patient portal. Press 5 if you’re willing to fill out a survey on your experience today. Have a great day!
+INTENT healthcare.end_session

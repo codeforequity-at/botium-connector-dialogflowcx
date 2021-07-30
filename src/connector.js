@@ -2,6 +2,7 @@ const { v1: uuidV1 } = require('uuid')
 const { SessionsClient } = require('@google-cloud/dialogflow-cx')
 const _ = require('lodash')
 const debug = require('debug')('botium-connector-dialogflowcx')
+const { struct } = require('../structJson')
 
 const Capabilities = {
   DIALOGFLOWCX_PROJECT_ID: 'DIALOGFLOWCX_PROJECT_ID',
@@ -108,6 +109,14 @@ class BotiumConnectorDialogflowCX {
       .then((responses) => {
         const response = responses[0]
 
+        if (response.queryResult.parameters) {
+          response.queryResult.parameters = struct.decode(response.queryResult.parameters)
+        }
+        for (const responseMessage of response.queryResult.responseMessages) {
+          if (responseMessage.payload) {
+            responseMessage.payload = struct.decode(responseMessage.payload)
+          }
+        }
         debug(`dialogflow response: ${JSON.stringify(_.omit(response, ['queryResult.diagnosticInfo', 'outputAudio']), null, 2)}`)
         const nlp = {
           intent: this._extractIntent(response)
@@ -116,11 +125,9 @@ class BotiumConnectorDialogflowCX {
         const attachments = audioAttachment ? [audioAttachment] : []
 
         for (const responseMessage of response.queryResult.responseMessages) {
-          if (responseMessage.text) {
-            if (responseMessage.text.text) {
-              setTimeout(() => this.queueBotSays({ sender: 'bot', messageText: responseMessage.text.text[0], sourceData: response.queryResult, nlp, attachments }), 0)
-            }
-          }
+          if (Object.keys(responseMessage).length === 0) continue
+          const messageText = responseMessage.text && responseMessage.text.text && responseMessage.text.text[0]
+          setTimeout(() => this.queueBotSays({ sender: 'bot', messageText, sourceData: response.queryResult, nlp, attachments }), 0)
         }
       }).catch((err) => {
         debug(err)

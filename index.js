@@ -70,6 +70,13 @@ module.exports = {
         label: 'Language Code',
         type: 'string',
         required: false
+      },
+      {
+        name: 'DIALOGFLOWCX_QUERY_PARAMS',
+        label: 'Query Parameters',
+        type: 'json',
+        required: false,
+        advanced: true
       }
     ]
   }

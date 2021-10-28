@@ -8,6 +8,15 @@
       "DIALOGFLOWCX_LOCATION": "europe-west2",
       "DIALOGFLOWCX_CLIENT_EMAIL": "",
       "DIALOGFLOWCX_PRIVATE_KEY": "",
+      "DIALOGFLOWCX_QUERY_PARAMS": {
+        "geoLocation": {
+          "longitude": 16.363449,
+          "latitude": 48.210033
+        },
+        "payload": {
+          "custom1": "custom1"
+        }
+      },
       "USER_INPUTS": [
         {
           "ref": "MEDIA",

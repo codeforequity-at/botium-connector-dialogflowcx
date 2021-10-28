@@ -11,7 +11,8 @@ const Capabilities = {
   DIALOGFLOWCX_ENVIRONMENT: 'DIALOGFLOWCX_ENVIRONMENT',
   DIALOGFLOWCX_CLIENT_EMAIL: 'DIALOGFLOWCX_CLIENT_EMAIL',
   DIALOGFLOWCX_PRIVATE_KEY: 'DIALOGFLOWCX_PRIVATE_KEY',
-  DIALOGFLOWCX_LANGUAGE_CODE: 'DIALOGFLOWCX_LANGUAGE_CODE'
+  DIALOGFLOWCX_LANGUAGE_CODE: 'DIALOGFLOWCX_LANGUAGE_CODE',
+  DIALOGFLOWCX_QUERY_PARAMS: 'DIALOGFLOWCX_QUERY_PARAMS'
 }
 
 const Defaults = {
@@ -56,6 +57,16 @@ class BotiumConnectorDialogflowCX {
     debug('Start called')
 
     this.conversationId = uuidV1()
+    this.queryParams = {}
+
+    if (this.caps[Capabilities.DIALOGFLOWCX_QUERY_PARAMS]) {
+      if (_.isString(this.caps[Capabilities.DIALOGFLOWCX_QUERY_PARAMS])) {
+        Object.assign(this.queryParams, JSON.parse(this.caps[Capabilities.DIALOGFLOWCX_QUERY_PARAMS]))
+      } else {
+        Object.assign(this.queryParams, this.caps[Capabilities.DIALOGFLOWCX_QUERY_PARAMS])
+      }
+    }
+
     this.sessionClient = new SessionsClient(this.sessionOpts)
     if (this.caps[Capabilities.DIALOGFLOWCX_ENVIRONMENT]) {
       this.sessionPath = this.sessionClient.projectLocationAgentEnvironmentSessionPath(this.caps[Capabilities.DIALOGFLOWCX_PROJECT_ID], this.caps[Capabilities.DIALOGFLOWCX_LOCATION] || 'global', this.caps[Capabilities.DIALOGFLOWCX_AGENT_ID], this.caps[Capabilities.DIALOGFLOWCX_ENVIRONMENT], this.conversationId)
@@ -102,6 +113,20 @@ class BotiumConnectorDialogflowCX {
         text: msg.messageText
       }
     }
+
+    const mergeQueryParams = {}
+    if (msg.SET_DIALOGFLOWCX_QUERYPARAMS) {
+      Object.assign(mergeQueryParams, msg.SET_DIALOGFLOWCX_QUERYPARAMS)
+    }
+
+    request.queryParams = Object.assign({}, this.queryParams, mergeQueryParams)
+    if (request.queryParams.payload) {
+      request.queryParams.payload = struct.encode(request.queryParams.payload)
+    }
+    if (request.queryParams.parameters) {
+      request.queryParams.parameters = struct.encode(request.queryParams.parameters)
+    }
+
     debug(`dialogflow request: ${JSON.stringify(_.omit(request, ['queryInput.audio']), null, 2)}`)
     msg.sourceData = request
 

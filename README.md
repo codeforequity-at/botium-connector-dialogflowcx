@@ -103,3 +103,6 @@ Google private key. If not given, [Google default authentication](https://cloud.
 
 The language of this conversational query. See [all languages](https://dialogflow.com/docs/reference/language).
 
+### DIALOGFLOWCX_QUERY_PARAMS
+
+Query parameters as JSON struct.

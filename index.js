@@ -1,3 +1,5 @@
+const _ = require('lodash')
+const { AgentsClient, EnvironmentsClient } = require('@google-cloud/dialogflow-cx')
 const BotiumConnectorDialogflowCX = require('./src/connector')
 
 module.exports = {
@@ -12,14 +14,21 @@ module.exports = {
       audioInput: true,
       supportedFileExtensions: ['.wav', '.pcm', '.m4a', '.flac', '.riff', '.wma', '.aac', '.ogg', '.oga', '.mp3', '.amr']
     },
-    helperText: 'You have to download your <a href="https://cloud.google.com/docs/authentication/getting-started" target="_blank">Google credentials</a> for accessing your Dialogflow CX Agent first. Project Id, Agent Id and Location can be found in the <a href="https://cloud.google.com/dialogflow/cx/docs/quick/api" target="_blank">Dialogflow CX Console</a>.',
+    helperText: 'You have to download your <a href="https://cloud.google.com/docs/authentication/getting-started" target="_blank">Google credentials</a> for accessing your Dialogflow CX Agent first. The IAM roles <em>Dialogflow API-Administrator</em> and <em>Dialogflow API-Client</em> are required. Project Id, Agent Id and Location can be found in the <a href="https://cloud.google.com/dialogflow/cx/docs/quick/api" target="_blank">Dialogflow CX Console</a>.',
     capabilities: [
       {
-        name: 'DIALOGFLOWCX_PROJECT_ID',
-        label: 'Project Id',
-        description: 'You can find this in the Dialogflow CX Console',
+        name: 'DIALOGFLOWCX_CLIENT_EMAIL',
+        label: 'Credentials Client Email',
+        description: 'You can find this in the Google Cloud credentials file',
         type: 'string',
-        required: true
+        required: false
+      },
+      {
+        name: 'DIALOGFLOWCX_PRIVATE_KEY',
+        label: 'Credentials Private Key',
+        description: 'You can find this in the Google Cloud credentials file',
+        type: 'secret',
+        required: false
       },
       {
         name: 'DIALOGFLOWCX_LOCATION',
@@ -38,38 +47,100 @@ module.exports = {
         ]
       },
       {
-        name: 'DIALOGFLOWCX_AGENT_ID',
-        label: 'Agent Id',
+        name: 'DIALOGFLOWCX_PROJECT_ID',
+        label: 'Project Id',
         description: 'You can find this in the Dialogflow CX Console',
         type: 'string',
         required: true
       },
       {
+        name: 'DIALOGFLOWCX_AGENT_ID',
+        label: 'Agent Id',
+        description: 'You can find this in the Dialogflow CX Console',
+        type: 'query',
+        required: true,
+        query: async (caps) => {
+          if (caps && caps.DIALOGFLOWCX_CLIENT_EMAIL && caps.DIALOGFLOWCX_PRIVATE_KEY && caps.DIALOGFLOWCX_PROJECT_ID) {
+            try {
+              const agentsOpts = {
+                projectId: caps.DIALOGFLOWCX_PROJECT_ID,
+                credentials: {
+                  client_email: caps.DIALOGFLOWCX_CLIENT_EMAIL,
+                  private_key: caps.DIALOGFLOWCX_PRIVATE_KEY
+                }
+              }
+              if (caps.DIALOGFLOWCX_LOCATION) {
+                agentsOpts.apiEndpoint = `${caps.DIALOGFLOWCX_LOCATION}-dialogflow.googleapis.com`
+              }
+              const agentsClient = new AgentsClient(agentsOpts)
+              const agents = await agentsClient.listAgents({ parent: agentsClient.locationPath(caps.DIALOGFLOWCX_PROJECT_ID, caps.DIALOGFLOWCX_LOCATION) })
+              if (agents && agents.length > 0) {
+                return agents[0].map(a => ({ name: a.displayName, key: agentsClient.matchAgentFromAgentName(a.name) }))
+              }
+            } catch (err) {
+              throw new Error(`Dialogflow CX Agents Query failed: ${err.message}`)
+            }
+          }
+        }
+      },
+      {
         name: 'DIALOGFLOWCX_ENVIRONMENT',
         label: 'Environment',
-        description: 'Dialogflow publishing environment name',
-        type: 'string',
-        required: false
-      },
-      {
-        name: 'DIALOGFLOWCX_CLIENT_EMAIL',
-        label: 'Credentials Client Email',
-        description: 'You can find this in the Google Cloud credentials file',
-        type: 'string',
-        required: false
-      },
-      {
-        name: 'DIALOGFLOWCX_PRIVATE_KEY',
-        label: 'Credentials Private Key',
-        description: 'You can find this in the Google Cloud credentials file',
-        type: 'secret',
-        required: false
+        description: 'Dialogflow publishing environment Id',
+        type: 'query',
+        required: false,
+        query: async (caps) => {
+          if (caps && caps.DIALOGFLOWCX_CLIENT_EMAIL && caps.DIALOGFLOWCX_PRIVATE_KEY && caps.DIALOGFLOWCX_PROJECT_ID && caps.DIALOGFLOWCX_AGENT_ID) {
+            try {
+              const envsOpts = {
+                projectId: caps.DIALOGFLOWCX_PROJECT_ID,
+                credentials: {
+                  client_email: caps.DIALOGFLOWCX_CLIENT_EMAIL,
+                  private_key: caps.DIALOGFLOWCX_PRIVATE_KEY
+                }
+              }
+              if (caps.DIALOGFLOWCX_LOCATION) {
+                envsOpts.apiEndpoint = `${caps.DIALOGFLOWCX_LOCATION}-dialogflow.googleapis.com`
+              }
+              const envsClient = new EnvironmentsClient(envsOpts)
+              const envs = await envsClient.listEnvironments({ parent: envsClient.agentPath(caps.DIALOGFLOWCX_PROJECT_ID, caps.DIALOGFLOWCX_LOCATION || 'global', caps.DIALOGFLOWCX_AGENT_ID) })
+              if (envs && envs.length > 0) {
+                return envs[0].map(e => ({ name: e.displayName, key: envsClient.matchEnvironmentFromEnvironmentName(e.name) }))
+              }
+            } catch (err) {
+              throw new Error(`Dialogflow CX Agents Query failed: ${err.message}`)
+            }
+          }
+        }
       },
       {
         name: 'DIALOGFLOWCX_LANGUAGE_CODE',
         label: 'Language Code',
-        type: 'string',
-        required: false
+        type: 'query',
+        required: false,
+        query: async (caps) => {
+          if (caps && caps.DIALOGFLOWCX_CLIENT_EMAIL && caps.DIALOGFLOWCX_PRIVATE_KEY && caps.DIALOGFLOWCX_PROJECT_ID && caps.DIALOGFLOWCX_AGENT_ID) {
+            try {
+              const agentsOpts = {
+                projectId: caps.DIALOGFLOWCX_PROJECT_ID,
+                credentials: {
+                  client_email: caps.DIALOGFLOWCX_CLIENT_EMAIL,
+                  private_key: caps.DIALOGFLOWCX_PRIVATE_KEY
+                }
+              }
+              if (caps.DIALOGFLOWCX_LOCATION) {
+                agentsOpts.apiEndpoint = `${caps.DIALOGFLOWCX_LOCATION}-dialogflow.googleapis.com`
+              }
+              const agentsClient = new AgentsClient(agentsOpts)
+              const agents = await agentsClient.getAgent({ name: agentsClient.agentPath(caps.DIALOGFLOWCX_PROJECT_ID, caps.DIALOGFLOWCX_LOCATION, caps.DIALOGFLOWCX_AGENT_ID) })
+              if (agents && agents.length > 0) {
+                return _.uniq([agents[0].defaultLanguageCode, ...agents[0].supportedLanguageCodes]).map(l => ({ name: l, key: l }))
+              }
+            } catch (err) {
+              throw new Error(`Dialogflow CX Agents Query failed: ${err.message}`)
+            }
+          }
+        }
       },
       {
         name: 'DIALOGFLOWCX_QUERY_PARAMS',

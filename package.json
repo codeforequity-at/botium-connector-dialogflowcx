@@ -41,7 +41,7 @@
   },
   "dependencies": {
     "@babel/runtime": "^7.14.8",
-    "@google-cloud/dialogflow-cx": "^2.12.1",
+    "@google-cloud/dialogflow-cx": "^2.14.0",
     "debug": "^4.3.2",
     "lodash": "^4.17.21",
     "uuid": "^8.3.2"

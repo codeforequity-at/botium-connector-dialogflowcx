@@ -14,7 +14,7 @@ const importDialogflowCXIntents = async ({ caps = {}, buildconvosforutterances, 
   const container = await driver.Build()
 
   const client = new IntentsClient(container.pluginInstance.sessionOpts)
-  status('Client created', container.pluginInstance.sessionOpts)
+  status('Connected to Dialogflow CX', container.pluginInstance.sessionOpts)
 
   let parent
   if (caps[Capabilities.DIALOGFLOWCX_ENVIRONMENT]) {
@@ -22,7 +22,7 @@ const importDialogflowCXIntents = async ({ caps = {}, buildconvosforutterances, 
   } else {
     parent = client.agentPath(caps[Capabilities.DIALOGFLOWCX_PROJECT_ID], caps[Capabilities.DIALOGFLOWCX_LOCATION] || 'global', caps[Capabilities.DIALOGFLOWCX_AGENT_ID])
   }
-  status(`Using parent path "${parent}"`)
+  status(`Using Dialogflow CX project "${parent}"`)
 
   const [intents] = await client.listIntents({
     parent,
@@ -95,7 +95,7 @@ const importDialogflowCXIntents = async ({ caps = {}, buildconvosforutterances, 
       }
       convos.push(convo)
     }
-    status(`Succesfuly extracted intent "${intent.displayName}" utterances: ${utteranceList.length}, convos for entity asserters: ${convoForEntityExtracted}, convos for intent asserters: ${convoForUtteranceExtracted}`)
+    status(`Succesfully extracted intent "${intent.displayName}" utterances: ${utteranceList.length}, convos for entity asserters: ${convoForEntityExtracted}, convos for intent asserters: ${convoForUtteranceExtracted}`)
     if (!utteranceList.length) {
       status(`Ignoring "${intent.displayName}" from utterances because no entry found`)
     } else {

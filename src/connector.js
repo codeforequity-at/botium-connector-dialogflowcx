@@ -153,7 +153,7 @@ class BotiumConnectorDialogflowCX {
         }
       }).catch((err) => {
         debug(err)
-        throw new Error(`Cannot send message to dialogflow container: ${err.message}`)
+        throw new Error(`Cannot send message to dialogflow container: ${err.message}, request: ${JSON.stringify(request)}`)
       })
   }
 

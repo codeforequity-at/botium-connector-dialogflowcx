@@ -1,0 +1,9 @@
+entity
+
+#me
+am I covered for alternative medicine
+
+#bot
+INTENT healthcare.costs_of_coverage_category
+ENTITY_CONTENT costs_of_coverage_category|alternative medicine
+

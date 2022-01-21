@@ -3,17 +3,7 @@ const { SessionsClient } = require('@google-cloud/dialogflow-cx')
 const _ = require('lodash')
 const debug = require('debug')('botium-connector-dialogflowcx')
 const { struct } = require('../structJson')
-
-const Capabilities = {
-  DIALOGFLOWCX_PROJECT_ID: 'DIALOGFLOWCX_PROJECT_ID',
-  DIALOGFLOWCX_LOCATION: 'DIALOGFLOWCX_LOCATION',
-  DIALOGFLOWCX_AGENT_ID: 'DIALOGFLOWCX_AGENT_ID',
-  DIALOGFLOWCX_ENVIRONMENT: 'DIALOGFLOWCX_ENVIRONMENT',
-  DIALOGFLOWCX_CLIENT_EMAIL: 'DIALOGFLOWCX_CLIENT_EMAIL',
-  DIALOGFLOWCX_PRIVATE_KEY: 'DIALOGFLOWCX_PRIVATE_KEY',
-  DIALOGFLOWCX_LANGUAGE_CODE: 'DIALOGFLOWCX_LANGUAGE_CODE',
-  DIALOGFLOWCX_QUERY_PARAMS: 'DIALOGFLOWCX_QUERY_PARAMS'
-}
+const Capabilities = require('./Capabilities')
 
 const Defaults = {
   [Capabilities.DIALOGFLOWCX_LANGUAGE_CODE]: 'en'
@@ -150,7 +140,8 @@ class BotiumConnectorDialogflowCX {
         }
         debug(`dialogflow response: ${JSON.stringify(_.omit(response, ['queryResult.diagnosticInfo', 'outputAudio']), null, 2)}`)
         const nlp = {
-          intent: this._extractIntent(response)
+          intent: this._extractIntent(response),
+          entities: this._extractEntities(response)
         }
         const audioAttachment = this._getAudioOutput(response)
         const attachments = audioAttachment ? [audioAttachment] : []
@@ -207,6 +198,38 @@ class BotiumConnectorDialogflowCX {
       }
     }
     return {}
+  }
+
+  _extractEntities (response) {
+    if (response.queryResult.match && response.queryResult.match.parameters && Object.keys(response.queryResult.match.parameters).length > 0) {
+      return this._extractEntitiesFromFields('', response.queryResult.match.parameters)
+    }
+    return []
+  }
+
+  _extractEntitiesFromFields (keyPrefix, fields) {
+    return Object.keys(fields).reduce((entities, key) => {
+      return entities.concat(this._extractEntityValues(`${keyPrefix ? keyPrefix + '.' : ''}${key}`, fields[key]))
+    }, [])
+  }
+
+  _extractEntityValues (key, field) {
+    if (_.isNull(field) || _.isUndefined(field)) {
+      return []
+    } else if (_.isString(field) || _.isNumber(field) || _.isBoolean(field)) {
+      return [{
+        name: key,
+        value: field
+      }]
+    } else if (_.isArray(field)) {
+      return field.reduce((entities, lv, i) => {
+        return entities.concat(this._extractEntityValues(`${key}.${i}`, lv))
+      }, [])
+    } else if (_.isObject(field)) {
+      return this._extractEntitiesFromFields(key, field)
+    }
+    debug(`Unsupported entity kind for ${key}, skipping entity.`)
+    return []
   }
 }
 

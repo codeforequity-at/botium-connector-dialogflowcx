@@ -1,13 +1,17 @@
 const _ = require('lodash')
 const { AgentsClient, EnvironmentsClient } = require('@google-cloud/dialogflow-cx')
 const BotiumConnectorDialogflowCX = require('./src/connector')
-const { importHandler, importArgs } = require('./src/intents')
+const { importHandler, importArgs, exportHandler, exportArgs } = require('./src/intents')
 
 module.exports = {
   PluginVersion: 1,
   Import: {
     Handler: importHandler,
     Args: importArgs
+  },
+  Export: {
+    Handler: exportHandler,
+    Args: exportArgs
   },
   PluginClass: BotiumConnectorDialogflowCX,
   PluginDesc: {
@@ -18,6 +22,7 @@ module.exports = {
       intentConfidenceScore: true,
       audioInput: true,
       testCaseGeneration: true,
+      testCaseExport: true,
       supportedFileExtensions: ['.wav', '.pcm', '.m4a', '.flac', '.riff', '.wma', '.aac', '.ogg', '.oga', '.mp3', '.amr']
     },
     helperText: 'You have to download your <a href="https://cloud.google.com/docs/authentication/getting-started" target="_blank">Google credentials</a> for accessing your Dialogflow CX Agent first. The IAM roles <em>Dialogflow API-Administrator</em> and <em>Dialogflow API-Client</em> are required. Project Id, Agent Id and Location can be found in the <a href="https://cloud.google.com/dialogflow/cx/docs/quick/api" target="_blank">Dialogflow CX Console</a>.',

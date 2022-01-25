@@ -1,3 +1,4 @@
+const _ = require('lodash')
 const { IntentsClient } = require('@google-cloud/dialogflow-cx')
 const { BotDriver } = require('botium-core')
 const debug = require('debug')('botium-connector-dialogflowcx-intents')
@@ -106,6 +107,100 @@ const importDialogflowCXIntents = async ({ caps = {}, buildconvosforutterances, 
   return { convos, utterances }
 }
 
+const exportDialogflowCXIntents = async ({ caps = {} }, { utterances, convos }, { statusCallback } = {}) => {
+  const status = (log, obj) => {
+    if (obj) debug(log, obj)
+    else debug(log)
+    if (statusCallback) statusCallback(log, obj)
+  }
+
+  if (!utterances || utterances.length === 0) {
+    status('No utterances to export')
+    return
+  }
+  const driver = new BotDriver(caps)
+  const container = await driver.Build()
+
+  let intents
+  try {
+    const client = new IntentsClient(container.pluginInstance.sessionOpts)
+    status('Connected to Dialogflow CX', container.pluginInstance.sessionOpts)
+
+    let parent
+    if (caps[Capabilities.DIALOGFLOWCX_ENVIRONMENT]) {
+      parent = client.environmentPath(caps[Capabilities.DIALOGFLOWCX_PROJECT_ID], caps[Capabilities.DIALOGFLOWCX_LOCATION] || 'global', caps[Capabilities.DIALOGFLOWCX_AGENT_ID], caps[Capabilities.DIALOGFLOWCX_ENVIRONMENT])
+    } else {
+      parent = client.agentPath(caps[Capabilities.DIALOGFLOWCX_PROJECT_ID], caps[Capabilities.DIALOGFLOWCX_LOCATION] || 'global', caps[Capabilities.DIALOGFLOWCX_AGENT_ID])
+    }
+    try {
+      status(`Using Dialogflow CX project "${parent}"`)
+
+      intents = (await client.listIntents({
+        parent,
+        pageSize: 1000
+      }))[0]
+
+      for (const intent of intents) {
+        for (const phrase of (intent.trainingPhrases || [])) {
+          phrase.utterance = phrase.parts.map(p => p.text).join('').trim()
+        }
+      }
+    } catch (err) {
+      throw new Error(`Dialogflow CX API download current intents failed: ${err && err.message}`)
+    }
+
+    for (const newStruct of (utterances || [])) {
+      const intent = newStruct.name
+      const newUtterances = _.uniq(newStruct.utterances || [])
+      if (newUtterances.length === 0) {
+        status(`Writing to intent "${intent}" skipped. There are no user examples to write`)
+        continue
+      }
+      const oldStruct = intents.find(i => i.displayName === intent)
+      if (_.isNil(oldStruct)) {
+        try {
+          await client.createIntent({
+            parent,
+            intent: {
+              displayName: intent,
+              languageCode: caps[Capabilities.DIALOGFLOWCX_LANGUAGE_CODE] || null,
+              trainingPhrases: newUtterances.map(u => ({ parts: [{ text: u }], repeatCount: 1 }))
+            }
+          })
+        } catch (err) {
+          throw new Error(`Dialogflow CX API create intent failed: ${err && err.message}`)
+        }
+        status(`Writing to intent "${intent}" succesful. Created with ${newUtterances.length} utterances`)
+      } else {
+        const writeUtterances = newUtterances.filter(u => {
+          return !oldStruct.trainingPhrases.find(tp => tp.utterance === u)
+        }).map(u => ({ parts: [{ text: u }], repeatCount: 1 }))
+        if (writeUtterances.length > 0) {
+          oldStruct.trainingPhrases = oldStruct.trainingPhrases.concat(writeUtterances)
+          try {
+            await client.updateIntent({
+              intent: oldStruct
+            })
+          } catch (err) {
+            throw new Error(`Dialogflow CX API update intent failed: ${err && err.message}`)
+          }
+          status(`Writing to intent "${intent}" succesful. Added ${writeUtterances.length} utterances`)
+        } else {
+          status(`Writing to intent "${intent}" skipped. No new utterances`)
+        }
+      }
+    }
+  } finally {
+    if (container) {
+      try {
+        await container.Clean()
+      } catch (err) {
+        debug(`Error container cleanup: ${err && err.message}`)
+      }
+    }
+  }
+}
+
 module.exports = {
   importHandler: ({ caps, buildconvosforutterances, buildconvosforentities, ...rest } = {}, { statusCallback } = {}) => importDialogflowCXIntents({ caps, buildconvosforutterances, buildconvosforentities, ...rest }, { statusCallback }),
   importArgs: {
@@ -123,6 +218,14 @@ module.exports = {
       describe: 'Build convo files for entity assertions per utterance of utterance file, if it has entities',
       type: 'boolean',
       default: true
+    }
+  },
+  exportHandler: ({ caps, ...rest } = {}, { convos, utterances } = {}, { statusCallback } = {}) => exportDialogflowCXIntents({ caps, ...rest }, { convos, utterances }, { statusCallback }),
+  exportArgs: {
+    caps: {
+      describe: 'Capabilities',
+      type: 'json',
+      skipCli: true
     }
   }
 }

@@ -76,6 +76,8 @@ class BotiumConnectorDialogflowCX {
         languageCode: this.caps[Capabilities.DIALOGFLOWCX_LANGUAGE_CODE]
       }
     }
+    const mergeQueryParams = {}
+
     if (msg.media && msg.media.length > 0) {
       const media = msg.media[0]
       if (!media.buffer) {
@@ -98,13 +100,36 @@ class BotiumConnectorDialogflowCX {
         mimeType: media.mimeType,
         base64: media.buffer.toString('base64')
       })
+    } else if (msg.buttons && msg.buttons.length > 0 && (msg.buttons[0].text || msg.buttons[0].payload)) {
+      let payload = msg.buttons[0].payload || msg.buttons[0].text
+      try {
+        payload = JSON.parse(payload)
+        if (payload.name) {
+          request.queryInput.event = {
+            event: payload.name
+          }
+          if (payload.languageCode) {
+            request.queryInput.languageCode = payload.languageCode
+          }
+          if (payload.parameters) {
+            mergeQueryParams.parameters = payload.parameters
+          }
+        } else {
+          request.queryInput.event = {
+            event: payload
+          }
+        }
+      } catch (err) {
+        request.queryInput.event = {
+          event: payload
+        }
+      }
     } else {
       request.queryInput.text = {
         text: msg.messageText
       }
     }
 
-    const mergeQueryParams = {}
     if (msg.SET_DIALOGFLOWCX_QUERYPARAMS) {
       Object.assign(mergeQueryParams, msg.SET_DIALOGFLOWCX_QUERYPARAMS)
     }
@@ -147,9 +172,75 @@ class BotiumConnectorDialogflowCX {
         const attachments = audioAttachment ? [audioAttachment] : []
 
         for (const responseMessage of response.queryResult.responseMessages) {
-          if (Object.keys(responseMessage).length === 0) continue
-          const messageText = responseMessage.text && responseMessage.text.text && responseMessage.text.text[0]
-          setTimeout(() => this.queueBotSays({ sender: 'bot', messageText, sourceData: response.queryResult, nlp, attachments }), 0)
+          if (responseMessage.text) {
+            const messageText = responseMessage.text && responseMessage.text.text && responseMessage.text.text[0]
+            setTimeout(() => this.queueBotSays({ sender: 'bot', messageText, sourceData: response.queryResult, nlp, attachments }), 0)
+          } else if (responseMessage.payload && responseMessage.payload.richContent) {
+            for (const [i, richContentParts] of responseMessage.payload.richContent.entries()) {
+              const botMsg = { sender: 'bot', sourceData: response.queryResult, ...(i === 0 ? { nlp, attachments } : {}) }
+
+              const infoCards = []
+              const cards = []
+              const buttons = []
+              const chips = []
+              const media = []
+
+              for (const part of richContentParts) {
+                if (part.type === 'info') {
+                  infoCards.push({
+                    text: part.title,
+                    subtext: part.subtitle,
+                    content: part.text,
+                    image: part.image && part.image.src && part.image.src.rawUrl && {
+                      mediaUri: part.image.src.rawUrl
+                    },
+                    buttons: [],
+                    sourceData: part
+                  })
+                }
+                if (part.type === 'accordion' || part.type === 'description' || part.type === 'list') {
+                  cards.push({
+                    text: part.title,
+                    subtext: part.subtitle,
+                    content: part.text,
+                    image: part.image && part.image.src && part.image.src.rawUrl && {
+                      mediaUri: part.image.src.rawUrl
+                    },
+                    sourceData: part
+                  })
+                }
+                if (part.type === 'image') {
+                  media.push({
+                    mediaUri: part.rawUrl,
+                    altText: part.accessibilityText
+                  })
+                }
+                if (part.type === 'button') {
+                  buttons.push({
+                    text: part.text,
+                    payload: part.link || part.event || null
+                  })
+                }
+                if (part.type === 'chips') {
+                  chips.push(...part.options.map(c => ({
+                    text: c.text,
+                    payload: c.link,
+                    imageUri: c.image && c.image.src && c.image.src.rawUrl
+                  })))
+                }
+              }
+              if (infoCards.length > 0 && buttons.length > 0) {
+                infoCards[0].buttons.push(...buttons)
+              } else if (buttons.length > 0) {
+                chips.push(...buttons)
+              }
+              botMsg.cards = [...infoCards, ...cards]
+              botMsg.buttons = [...chips]
+              botMsg.media = [...media]
+
+              setTimeout(() => this.queueBotSays(botMsg), 0)
+            }
+          }
         }
       }).catch((err) => {
         debug(err)

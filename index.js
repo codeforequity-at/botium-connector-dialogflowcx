@@ -159,6 +159,14 @@ module.exports = {
         type: 'json',
         required: false,
         advanced: true
+      },
+      {
+        name: 'DIALOGFLOWCX_WELCOME_TEXT',
+        label: 'Welcome Text',
+        description: 'Welcome Text is sent to the Dialogflow CX Agent to initiate the conversation',
+        type: 'string',
+        required: false,
+        advanced: true
       }
     ]
   }

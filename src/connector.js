@@ -64,6 +64,32 @@ class BotiumConnectorDialogflowCX {
       this.sessionPath = this.sessionClient.projectLocationAgentSessionPath(this.caps[Capabilities.DIALOGFLOWCX_PROJECT_ID], this.caps[Capabilities.DIALOGFLOWCX_LOCATION] || 'global', this.caps[Capabilities.DIALOGFLOWCX_AGENT_ID], this.conversationId)
     }
     debug(`Using Dialogflow SessionPath: ${this.sessionPath}`)
+
+    if (!_.isNil(this.caps[Capabilities.DIALOGFLOWCX_WELCOME_TEXT])) {
+      const welcomeTexts = _.isArray(this.caps[Capabilities.DIALOGFLOWCX_WELCOME_TEXT]) ? this.caps[Capabilities.DIALOGFLOWCX_WELCOME_TEXT] : [this.caps[Capabilities.DIALOGFLOWCX_WELCOME_TEXT]]
+      for (const welcomeText of welcomeTexts) {
+        const request = {
+          session: this.sessionPath,
+          queryInput: {
+            text: {
+              text: welcomeText || ''
+            },
+            languageCode: this.caps[Capabilities.DIALOGFLOWCX_LANGUAGE_CODE]
+          }
+        }
+        try {
+          const responses = await this.sessionClient.detectIntent(request)
+          if (responses && responses[0]) {
+            debug(`dialogflow welcome text "${welcomeText}" response: ${JSON.stringify(_.omit(responses[0], ['queryResult.diagnosticInfo', 'outputAudio']), null, 2)}`)
+          } else {
+            debug(`dialogflow welcome text "${welcomeText}" response empty, ignoring this.`)
+          }
+        } catch (err) {
+          debug(err)
+          throw new Error(`Cannot send welcome message "${welcomeText}" to dialogflow container: ${err.message}, request: ${JSON.stringify(request)}`)
+        }
+      }
+    }
   }
 
   UserSays (msg) {

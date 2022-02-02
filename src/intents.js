@@ -31,6 +31,14 @@ const importDialogflowCXIntents = async (
   const container = await driver.Build()
 
   try {
+    status(`Starting download from Dialogflow CX Intets Client ${JSON.stringify({
+      crawlConvo,
+      skipWelcomeMessage,
+      maxConversationLength,
+      continueOnDuplicatePage,
+      flowToCrawl,
+      flowToCrawlIncludeForeignUtterances
+    })}`)
     const intentsClient = new IntentsClient(container.pluginInstance.sessionOpts)
     status('Connected to Dialogflow CX Intets Client')
 
@@ -53,7 +61,6 @@ const importDialogflowCXIntents = async (
           utteranceList.push(phrase.utterance)
         }
       }
-      status(`Succesfully extracted intent "${intent.displayName}" utterances: ${utteranceList.length}`)
       if (!utteranceList.length) {
         status(`Ignoring "${intent.displayName}" from utterances because no entry found`)
       } else {
@@ -64,8 +71,9 @@ const importDialogflowCXIntents = async (
         }
       }
     }
+    status(`Succesfully extracted ${Object.keys(utterances).length} utterances`)
 
-    let conversations = {}
+    let convos = []
     if (crawlConvo) {
       const crawlConversations = async () => {
         const agentsClient = new AgentsClient(container.pluginInstance.sessionOpts)
@@ -91,11 +99,11 @@ const importDialogflowCXIntents = async (
           const conversationAsString = JSON.stringify(conversation)
           if (conversationAsString && !conversations[conversationAsString]) {
             conversations[conversationAsString] = conversation
-            context.conversation = null
           }
+          context.conversation = null
         }
         const crawlTransition = async (transitionRoute, context) => {
-          const { stack, conversation } = context
+          const { stack, conversation, crawlingTargetFlow } = context
           if (stack.includes(transitionRoute.name)) {
             storeConvoOptional(context)
             status('Route already used, finishing conversation')
@@ -121,7 +129,7 @@ const importDialogflowCXIntents = async (
               // /intents/00000000-0000-0000-0000-000000000000 must be the default welcome intent (Always? Better way to decide? Other system intents?)
               // We dont need welcome message for it
               if (!skipWelcomeMessage || !transitionRoute.intent.endsWith('/intents/00000000-0000-0000-0000-000000000000')) {
-                if (flowToCrawl || flowToCrawlIncludeForeignUtterances) {
+                if (crawlingTargetFlow || flowToCrawlIncludeForeignUtterances) {
                   conversation.push({
                     sender: 'me',
                     messageText: intent
@@ -167,7 +175,7 @@ const importDialogflowCXIntents = async (
             }
             conversation.push(botMessage)
           }
-          if (!context.crawlingTargetFlow && shortestConvoToTartgetFlow < conversation.length) {
+          if (!crawlingTargetFlow && shortestConvoToTartgetFlow < conversation.length) {
             status('Not reached the target flow using the shortest path. Skipping conversation.')
             return {}
           }
@@ -314,17 +322,17 @@ const importDialogflowCXIntents = async (
         }
         status('Crawling conversations')
         await crawlFlow(startFlow, crawlingContext)
+        status(`Crawling conversations finished, ${Object.keys(conversations).length} conversations found. Crawled ${Object.keys(flowCache).length} flows and ${Object.keys(pageCache).length} pages`)
         return conversations
       }
-      conversations = await crawlConversations()
+      const conversations = await crawlConversations()
+      convos = Object.values(conversations).map((conversation, i) => ({
+        header: {
+          name: `Convo ${i}`
+        },
+        conversation
+      }))
     }
-    const convos = Object.values(conversations).map((conversation, i) => ({
-      header: {
-        name: `Convo ${i}`
-      },
-      conversation
-    }))
-    status(`Crawling conversations finished, ${convos.length} conversations found. Crawled ${Object.keys(flowCache).length} flows and ${Object.keys(pageCache).length} pages`)
     return {
       convos,
       utterances: Object.values(utterances).filter(u => u.include).map(u => ({

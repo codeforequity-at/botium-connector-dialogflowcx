@@ -106,3 +106,7 @@ The language of this conversational query. See [all languages](https://dialogflo
 ### DIALOGFLOWCX_QUERY_PARAMS
 
 Query parameters as JSON struct.
+
+### DIALOGFLOWCX_WELCOME_TEXT
+
+Welcome text(s) to send to the Dialogflow CX agent for initiating the session

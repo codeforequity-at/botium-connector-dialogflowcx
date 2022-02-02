@@ -2,6 +2,7 @@ const _ = require('lodash')
 const { AgentsClient, EnvironmentsClient } = require('@google-cloud/dialogflow-cx')
 const BotiumConnectorDialogflowCX = require('./src/connector')
 const { importHandler, importArgs, exportHandler, exportArgs } = require('./src/intents')
+const { getFlows } = require('./src/api')
 
 module.exports = {
   PluginVersion: 1,
@@ -159,6 +160,15 @@ module.exports = {
         type: 'json',
         required: false,
         advanced: true
+      }
+    ],
+    actions: [
+      {
+        name: 'GetFlows',
+        description: 'Getting flows',
+        run: async (caps) => {
+          return getFlows({ caps })
+        }
       }
     ]
   }

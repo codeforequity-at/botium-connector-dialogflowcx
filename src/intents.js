@@ -11,6 +11,7 @@ const importDialogflowCXIntents = async (
     skipWelcomeMessage,
     maxConversationLength = 10,
     continueOnDuplicatePage,
+    continueOnDuplicateFlow,
     flowToCrawl,
     flowToCrawlIncludeForeignUtterances
   } = {},
@@ -36,6 +37,7 @@ const importDialogflowCXIntents = async (
       skipWelcomeMessage,
       maxConversationLength,
       continueOnDuplicatePage,
+      continueOnDuplicateFlow,
       flowToCrawl,
       flowToCrawlIncludeForeignUtterances
     })}`)
@@ -248,6 +250,12 @@ const importDialogflowCXIntents = async (
           }
         }
         const crawlFlow = async (flowPath, context) => {
+          if (context.stack.includes(flowPath) && !continueOnDuplicateFlow) {
+            storeConvoOptional(context)
+            status('Flow already used, finishing conversation')
+            return {}
+          }
+
           if (!flowCache[flowPath]) {
             try {
               const [flow] = await flowsClient.getFlow({
@@ -260,6 +268,7 @@ const importDialogflowCXIntents = async (
               return
             }
           }
+
           const { transitionRoutes, eventHandlers, displayName } = flowCache[flowPath]
           if (flowToCrawl) {
             if (flowPath === flowToCrawl) {
@@ -286,6 +295,7 @@ const importDialogflowCXIntents = async (
             }
           }
           status(`Crawling flow "${displayName}"`)
+          context.stack.push(flowPath)
           if (eventHandlers && eventHandlers.length) {
             // we have to crawl them too?
             status(`Event handlers detected in flow ${displayName} in path ${flowPath}`)
@@ -449,7 +459,7 @@ const exportDialogflowCXIntents = async ({ caps = {}, deleteOldUtterances }, { u
 }
 
 module.exports = {
-  importHandler: ({ caps, crawlConvo, skipWelcomeMessage, maxConversationLength, continueOnDuplicatePage, flowToCrawl, flowToCrawlIncludeForeignUtterances, ...rest } = {}, { statusCallback } = {}) => importDialogflowCXIntents({ caps, crawlConvo, skipWelcomeMessage, maxConversationLength, continueOnDuplicatePage, flowToCrawl, flowToCrawlIncludeForeignUtterances, ...rest }, { statusCallback }),
+  importHandler: ({ caps, crawlConvo, skipWelcomeMessage, maxConversationLength, continueOnDuplicatePage, continueOnDuplicateFlow, flowToCrawl, flowToCrawlIncludeForeignUtterances, ...rest } = {}, { statusCallback } = {}) => importDialogflowCXIntents({ caps, crawlConvo, skipWelcomeMessage, maxConversationLength, continueOnDuplicatePage, continueOnDuplicateFlow, flowToCrawl, flowToCrawlIncludeForeignUtterances, ...rest }, { statusCallback }),
   importArgs: {
     caps: {
       describe: 'Capabilities',

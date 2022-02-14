@@ -9,11 +9,11 @@ const importDialogflowCXIntents = async (
     caps = {},
     crawlConvo,
     skipWelcomeMessage,
-    maxConversationLength,
+    maxConversationLength = 10,
     continueOnDuplicatePage,
     flowToCrawl,
     flowToCrawlIncludeForeignUtterances
-  } = { maxConversationLength: 10 },
+  } = {},
   {
     statusCallback
   } = {}
@@ -109,7 +109,7 @@ const importDialogflowCXIntents = async (
             status('Route already used, finishing conversation')
             return {}
           }
-          if (Object.keys(conversations).length >= maxConversationLength) {
+          if (Object.keys(conversation).length >= maxConversationLength) {
             storeConvoOptional(context)
             status(`Conversation length ${maxConversationLength} reached, finishing conversation`)
             return {}

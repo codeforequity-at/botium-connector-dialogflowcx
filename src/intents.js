@@ -67,6 +67,10 @@ const importDialogflowCXIntents = async (
       intentIdToDialogflowIntent[intent.name] = intent
       const utteranceList = []
       for (const phrase of (intent.trainingPhrases || [])) {
+        if (phrase.parts.filter(p => p.parameterId).length > 0) {
+          // TODO
+          console.log(`phrase ===> ${JSON.stringify(phrase)}`)
+        }
         phrase.utterance = phrase.parts.map(p => p.text).join('').trim()
         if (!utteranceList.includes(phrase.utterance)) {
           utteranceList.push(phrase.utterance)
@@ -128,7 +132,7 @@ const importDialogflowCXIntents = async (
           }
           const crawlTransitions = async (transitionRoutes, context) => {
             let crawlTransitionResult = {}
-            let clonedContext
+            let clonedContext = null
             for (const transitionRoute of transitionRoutes) {
               if (crawlTransitionResult.continueConversation) {
                 context = clonedContext
@@ -145,7 +149,7 @@ const importDialogflowCXIntents = async (
               return {}
             }
             if (Object.keys(conversation).length >= maxConversationLength) {
-              onFinish(context, `Conversation length ${maxConversationLength} reached, finishing conversation`, {supressLog: true})
+              onFinish(context, `Conversation length ${maxConversationLength} reached, finishing conversation`, { supressLog: true })
               return {}
             }
 
@@ -165,7 +169,8 @@ const importDialogflowCXIntents = async (
                 // /intents/00000000-0000-0000-0000-000000000000 must be the default welcome intent (Always? Better way to decide? Other system intents?)
                 // We dont need welcome message for it
                 if (!skipWelcomeMessage || !transitionRoute.intent.endsWith('/intents/00000000-0000-0000-0000-000000000000')) {
-                  if (crawlingTargetFlow || flowToCrawlIncludeForeignUtterances) {
+                  if (!flowToCrawl || crawlingTargetFlow || flowToCrawlIncludeForeignUtterances) {
+                    // if (crawlingTargetFlow || flowToCrawlIncludeForeignUtterances) {
                     conversation.push({
                       sender: 'me',
                       messageText: intent
@@ -199,7 +204,8 @@ const importDialogflowCXIntents = async (
                 sender: 'bot'
               }
               if (botMessageText) {
-                botMessage.messageText = botMessageText
+                // variables like "$session.params.type_of_doctor" to "*"
+                botMessage.messageText = botMessageText.replace(/\$session\.params\.[A-Za-z_-]+/gm, '*')
               }
               if (intent) {
                 botMessage.asserters = [

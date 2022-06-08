@@ -33,14 +33,14 @@ module.exports = {
         label: 'Credentials Client Email',
         description: 'You can find this in the Google Cloud credentials file',
         type: 'string',
-        required: false
+        required: true
       },
       {
         name: 'DIALOGFLOWCX_PRIVATE_KEY',
         label: 'Credentials Private Key',
         description: 'You can find this in the Google Cloud credentials file',
         type: 'secret',
-        required: false
+        required: true
       },
       {
         name: 'DIALOGFLOWCX_LOCATION',

@@ -78,9 +78,7 @@ class BotiumConnectorDialogflowCX {
           }
         }
         try {
-          // TODO
-          console.log(`options ===> ${JSON.stringify({timeout: 1})}`)
-          const responses = await this.sessionClient.detectIntent(request, {timeout: 1})
+          const responses = await this.sessionClient.detectIntent(request)
           if (responses && responses[0]) {
             debug(`dialogflow welcome text "${welcomeText}" response: ${JSON.stringify(_.omit(responses[0], ['queryResult.diagnosticInfo', 'outputAudio']), null, 2)}`)
           } else {

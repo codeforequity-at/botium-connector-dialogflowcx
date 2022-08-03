@@ -171,7 +171,6 @@ class BotiumConnectorDialogflowCX {
     debug(`dialogflow request: ${JSON.stringify(_.omit(request, ['queryInput.audio']), null, 2)}`)
     msg.sourceData = request
 
-    console.log(`options ===> ${JSON.stringify({timeout: 1})}`)
     return this.sessionClient.detectIntent(request, { timeout: 1 })
       .then((responses) => {
         const response = responses[0]

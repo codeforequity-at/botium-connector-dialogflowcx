@@ -78,7 +78,9 @@ class BotiumConnectorDialogflowCX {
           }
         }
         try {
-          const responses = await this.sessionClient.detectIntent(request)
+          // TODO
+          console.log(`options ===> ${JSON.stringify({timeout: 1})}`)
+          const responses = await this.sessionClient.detectIntent(request, {timeout: 1})
           if (responses && responses[0]) {
             debug(`dialogflow welcome text "${welcomeText}" response: ${JSON.stringify(_.omit(responses[0], ['queryResult.diagnosticInfo', 'outputAudio']), null, 2)}`)
           } else {
@@ -171,7 +173,8 @@ class BotiumConnectorDialogflowCX {
     debug(`dialogflow request: ${JSON.stringify(_.omit(request, ['queryInput.audio']), null, 2)}`)
     msg.sourceData = request
 
-    return this.sessionClient.detectIntent(request)
+    console.log(`options ===> ${JSON.stringify({timeout: 1})}`)
+    return this.sessionClient.detectIntent(request, { timeout: 1 })
       .then((responses) => {
         const response = responses[0]
 

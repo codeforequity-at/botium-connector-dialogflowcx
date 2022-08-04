@@ -27,8 +27,9 @@ class BotiumConnectorDialogflowCX {
   async Build () {
     debug('Build called')
 
-    this.sessionOpts = {
-      fallback: true
+    this.sessionOpts = {}
+    if (this.caps[Capabilities.DIALOGFLOWCX_USE_FALLBACK]) {
+      this.sessionOpts.fallback = true
     }
 
     if (this.caps[Capabilities.DIALOGFLOWCX_CLIENT_EMAIL] && this.caps[Capabilities.DIALOGFLOWCX_PRIVATE_KEY]) {
@@ -40,6 +41,11 @@ class BotiumConnectorDialogflowCX {
     if (this.caps[Capabilities.DIALOGFLOWCX_LOCATION]) {
       this.sessionOpts.apiEndpoint = `${this.caps[Capabilities.DIALOGFLOWCX_LOCATION]}-dialogflow.googleapis.com`
       debug(`Using Dialogflow apiEndpoint: ${this.sessionOpts.apiEndpoint}`)
+    }
+
+    this.detectIntentOpts = {}
+    if (!_.isNil(this.caps[Capabilities.DIALOGFLOWCX_TIMEOUT])) {
+      this.detectIntentOpts.timeout = this.caps[Capabilities.DIALOGFLOWCX_TIMEOUT]
     }
   }
 
@@ -78,7 +84,7 @@ class BotiumConnectorDialogflowCX {
           }
         }
         try {
-          const responses = await this.sessionClient.detectIntent(request)
+          const responses = await this.sessionClient.detectIntent(request, this.detectIntentOpts)
           if (responses && responses[0]) {
             debug(`dialogflow welcome text "${welcomeText}" response: ${JSON.stringify(_.omit(responses[0], ['queryResult.diagnosticInfo', 'outputAudio']), null, 2)}`)
           } else {
@@ -171,7 +177,7 @@ class BotiumConnectorDialogflowCX {
     debug(`dialogflow request: ${JSON.stringify(_.omit(request, ['queryInput.audio']), null, 2)}`)
     msg.sourceData = request
 
-    return this.sessionClient.detectIntent(request, { timeout: 1 })
+    return this.sessionClient.detectIntent(request, this.detectIntentOpts)
       .then((responses) => {
         const response = responses[0]
 

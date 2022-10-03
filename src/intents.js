@@ -1,6 +1,7 @@
 const crypto = require('crypto')
 const _ = require('lodash')
 const { AgentsClient, IntentsClient, PagesClient, FlowsClient } = require('@google-cloud/dialogflow-cx')
+const { pRateLimit } = require('p-ratelimit')
 const { BotDriver } = require('botium-core')
 const debug = require('debug')('botium-connector-dialogflowcx-intents')
 const Capabilities = require('./Capabilities')
@@ -23,6 +24,12 @@ const importDialogflowCXIntents = async (
     statusCallback
   } = {}
 ) => {
+  const limit = pRateLimit({
+    interval: 60 * 1000,
+    rate: 99,
+    concurrency: 10,
+    maxDelay: 10000
+  })
   const status = (log, obj) => {
     if (obj) {
       debug(log, obj)
@@ -57,10 +64,10 @@ const importDialogflowCXIntents = async (
     const agentPath = intentsClient.agentPath(caps[Capabilities.DIALOGFLOWCX_PROJECT_ID], caps[Capabilities.DIALOGFLOWCX_LOCATION] || 'global', caps[Capabilities.DIALOGFLOWCX_AGENT_ID])
     status(`Using Dialogflow CX project "${agentPath}"`)
 
-    const [intents] = await intentsClient.listIntents({
+    const [intents] = await limit(() => intentsClient.listIntents({
       parent: agentPath,
       pageSize: 1000
-    })
+    }))
 
     const utterances = {}
     const intentIdToDialogflowIntent = {}
@@ -109,9 +116,9 @@ const importDialogflowCXIntents = async (
           status('Connected to Dialogflow CX Flows Client')
           const pagesClient = new PagesClient(container.pluginInstance.sessionOpts)
           status('Connected to Dialogflow CX Pages Client')
-          const [agent] = await agentsClient.getAgent({
+          const [agent] = await limit(() => agentsClient.getAgent({
             name: agentPath
-          })
+          }))
           const startFlow = agent.startFlow
 
           const flowCache = {}
@@ -323,9 +330,9 @@ const importDialogflowCXIntents = async (
             }
             if (!pageCache[pagePath]) {
               try {
-                const [page] = await pagesClient.getPage({
+                const [page] = await limit(() => pagesClient.getPage({
                   name: pagePath
-                })
+                }))
                 status(`Page #${Object.keys(pageCache).length + 1} read ${page.displayName}`)
                 pageCache[pagePath] = page
                 if (page.form) {
@@ -358,9 +365,9 @@ const importDialogflowCXIntents = async (
 
             if (!flowCache[flowPath]) {
               try {
-                const [flow] = await flowsClient.getFlow({
+                const [flow] = await limit(() => flowsClient.getFlow({
                   name: flowPath
-                })
+                }))
                 status(`Flow #${Object.keys(flowCache).length + 1} read ${flowPath}`)
                 flowCache[flowPath] = flow
               } catch (err) {

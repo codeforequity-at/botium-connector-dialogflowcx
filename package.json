@@ -1,6 +1,6 @@
 {
   "name": "botium-connector-dialogflowcx",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "description": "Botium Connector for Google Dialogflow CX",
   "main": "dist/botium-connector-dialogflowcx-cjs.js",
   "module": "dist/botium-connector-dialogflowcx-es.js",
@@ -44,6 +44,7 @@
     "@google-cloud/dialogflow-cx": "^2.14.0",
     "debug": "^4.3.2",
     "lodash": "^4.17.21",
+    "p-ratelimit": "^1.0.1",
     "uuid": "^8.3.2"
   },
   "peerDependencies": {

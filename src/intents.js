@@ -4,8 +4,8 @@ const { AgentsClient, IntentsClient, PagesClient, FlowsClient } = require('@goog
 const { BotDriver } = require('botium-core')
 const debug = require('debug')('botium-connector-dialogflowcx-intents')
 const Capabilities = require('./Capabilities')
-const ENTRY_FLOW_NAME = 'Flow: 00000000-0000-0000-0000-000000000000'
-
+const ENTRY_FLOW_ID = '00000000-0000-0000-0000-000000000000'
+const ENTRY_FLOW_NAME = `Flow: ${ENTRY_FLOW_ID}`
 const importDialogflowCXIntents = async (
   {
     caps = {},
@@ -16,7 +16,8 @@ const importDialogflowCXIntents = async (
     continueOnDuplicatePage,
     continueOnDuplicateFlow,
     flowToCrawl,
-    flowToCrawlIncludeForeignUtterances
+    flowToCrawlIncludeForeignUtterances,
+    verbose = false
   } = {},
   {
     statusCallback
@@ -99,6 +100,8 @@ const importDialogflowCXIntents = async (
     let convos = []
     if (crawlConvo) {
       const crawlConversations = async () => {
+        let eventHandlersOnetimeOnlyMessageDone = false
+        let onFinishCounter = 0
         try {
           const agentsClient = new AgentsClient(container.pluginInstance.sessionOpts)
           status('Connected to Dialogflow CX Agents Client')
@@ -116,47 +119,103 @@ const importDialogflowCXIntents = async (
           let shortestConvoToTartgetFlow = Number.MAX_SAFE_INTEGER
           let conversations = []
           const onFinish = (context, finishedReason, options = {}) => {
-            if (!options.supressLog) {
+            if (context.finishedReasons[finishedReason]) {
+              context.finishedReasons[finishedReason]++
+            } else {
+              context.finishedReasons[finishedReason] = 1
+            }
+            verbose && status(process.memoryUsage())
+            onFinishCounter++
+            if (verbose || !options.supressLog) {
               status(finishedReason)
             }
-            const { conversation, crawlingTargetFlow, intents } = context
+            const { conversation, crawlingTargetFlow, intents, stack } = context
+            context.visitedFlow = null
+            context.visitedPage = null
+            context.visitedTransition = null
+            context.conversation = null
+            context.intents = null
             if (flowToCrawl && !crawlingTargetFlow) {
               return
             }
             const intentsAsString = JSON.stringify(intents)
-            if (!conversations.find(c => c.intentsAsString === intentsAsString)) {
-              conversations.push({ conversation, intents, intentsAsString, finishedReason })
+            const alreadyThere = conversations.find(c => c.intentsAsString === intentsAsString)
+            if (!alreadyThere) {
+              verbose && status(`Accepted: ${JSON.stringify({ mine: context.stack })}`)
+              conversations.push({ conversation, intents, intentsAsString, finishedReason, stack })
+              if (conversations.length % 10 === 0) {
+                status(`${conversations.length} conversations processed`)
+              }
+            } else {
+              verbose && status(`Dropped: ${JSON.stringify({ mine: context.stack, theirs: alreadyThere.stack })}`)
+              if ((onFinishCounter.length - conversations.length) % 50 === 0) {
+                status(`${onFinishCounter - conversations} conversations skipped`)
+              }
             }
-            context.conversation = null
-            context.intents = null
           }
           const crawlTransitions = async (transitionRoutes, context) => {
             let crawlTransitionResult = {}
             let clonedContext = null
-            for (const transitionRoute of transitionRoutes) {
+
+            // speedup try. In many cases clone is not required, because transactionRoute is not useful, we wont go deeper
+            const effectiveTransactionRoutes = transitionRoutes.filter((transitionRoute) => {
+              if (transitionRoute.intent) {
+                return true
+              }
+              if (transitionRoute.triggerFulfillment && transitionRoute.triggerFulfillment.messages && transitionRoute.triggerFulfillment.messages.length) {
+                return true
+              }
+              if (transitionRoute.targetFlow && transitionRoute.targetFlow.endsWith(ENTRY_FLOW_ID)) {
+                return false
+              }
+              if (transitionRoute.targetPage && isPageToFinish(transitionRoute.targetPage, context)) {
+                return false
+              }
+
+              return true
+            })
+            if (effectiveTransactionRoutes.length === 0) {
+              onFinish(context, 'All transactions skipped', { supressLog: true })
+              return
+            }
+            for (const transitionRoute of effectiveTransactionRoutes) {
               if (crawlTransitionResult.continueConversation) {
                 context = clonedContext
               }
-              clonedContext = _.cloneDeep(context)
+              clonedContext = {
+                // flow, and page has to be unique per convo?
+                visitedFlow: _.cloneDeep(context.visitedFlow),
+                visitedPage: _.cloneDeep(context.visitedPage),
+                // transition unique global
+                // otherwise we got stack overflow. :)
+                // so it is just a performance decision
+                visitedTransition: context.visitedTransition,
+                conversation: _.cloneDeep(context.conversation),
+                intents: _.cloneDeep(context.intents),
+                crawlingTargetFlow: context.crawlingTargetFlow,
+                stack: context.stack ? _.cloneDeep(context.stack) : null,
+                finishedReasons: context.finishedReasons
+              }
               crawlTransitionResult = (await crawlTransition(transitionRoute, clonedContext)) || {}
             }
           }
           const crawlTransition = async (transitionRoute, context) => {
             const transitionName = `Transition: ${nameFromPath(transitionRoute.name)}`
-            const { visited, conversation, crawlingTargetFlow, intents } = context
-            if (visited.includes(transitionName)) {
-              onFinish(context, 'Route already used, finishing conversation')
+            const { visitedTransition, conversation, crawlingTargetFlow, intents, stack } = context
+            if (visitedTransition.includes(transitionName)) {
+              onFinish(context, 'Route already used, finishing conversation', { supressLog: true })
               return {}
             }
+            // teoretically this will be always true. It is already checked before
             if (Object.keys(conversation).length >= maxConversationLength) {
               onFinish(context, `Conversation length ${maxConversationLength} reached, finishing conversation`, { supressLog: true })
               return {}
             }
 
-            visited.push(transitionName)
+            visitedTransition.push(transitionName)
+            stack && stack.push(transitionName)
 
             let intent
-
             if (transitionRoute.intent) {
               const intentStruct = intentIdToDialogflowIntent[transitionRoute.intent]
               if (intentStruct) {
@@ -217,6 +276,10 @@ const importDialogflowCXIntents = async (
               }
               conversation.push(botMessage)
             }
+            if (Object.keys(conversation).length >= maxConversationLength) {
+              onFinish(context, `Conversation length ${maxConversationLength} reached, finishing conversation`, { supressLog: true })
+              return {}
+            }
             if (!crawlingTargetFlow && shortestConvoToTartgetFlow < conversation.length) {
               status('Not reached the target flow using the shortest path. Skipping conversation.')
               return {}
@@ -241,15 +304,21 @@ const importDialogflowCXIntents = async (
               }
             }
           }
+          const isPageToFinish = (pagePath) => {
+            return pagePath.endsWith('/pages/END_SESSION') || pagePath.endsWith('/pages/PREVIOUS_PAGE') || pagePath.endsWith('/pages/CURRENT_PAGE') || pagePath.endsWith('/pages/START_PAGE')
+          }
           const crawlPage = async (pagePath, context) => {
-            const { visited } = context
-            if (visited.includes(pagePath) && !continueOnDuplicatePage) {
-              onFinish(context, 'Page already used, finishing conversation')
+            const pageName = `Page: ${pagePath.substring(pagePath.lastIndexOf('/'))}`
+            const { visitedPage, stack } = context
+            if (visitedPage.includes(pageName) && !continueOnDuplicatePage) {
+              onFinish(context, 'Page already used, finishing conversation', { supressLog: true })
               return {}
             }
-            visited.push(pagePath)
-            if (pagePath.endsWith('/pages/END_SESSION') || pagePath.endsWith('/pages/PREVIOUS_PAGE') || pagePath.endsWith('/pages/CURRENT_PAGE')) {
-              onFinish(context, `Conversation ended, ${pagePath.substring(pagePath.lastIndexOf('/') + 1)} detected`)
+            visitedPage.push(pageName)
+            stack && stack.push(pageName)
+
+            if (isPageToFinish(pagePath, context)) {
+              onFinish(context, `Conversation ended, ${pagePath.substring(pagePath.lastIndexOf('/') + 1)} detected`, { supressLog: true })
               return
             }
             if (!pageCache[pagePath]) {
@@ -257,6 +326,7 @@ const importDialogflowCXIntents = async (
                 const [page] = await pagesClient.getPage({
                   name: pagePath
                 })
+                status(`Page #${Object.keys(pageCache).length + 1} read ${page.displayName}`)
                 pageCache[pagePath] = page
                 if (page.form) {
                   status(`Form detected in page ${page.displayName}`)
@@ -267,21 +337,22 @@ const importDialogflowCXIntents = async (
               }
             }
             const { transitionRoutes, eventHandlers, displayName } = pageCache[pagePath]
-            if (eventHandlers && eventHandlers.length) {
-            // we have to crawl them too?
-              status(`Event handlers detected in page ${displayName} in path ${pagePath}`)
+            if (eventHandlers && eventHandlers.length && !eventHandlersOnetimeOnlyMessageDone) {
+              // we have to crawl them too?
+              status(`Event handlers detected in page ${displayName} in path ${pagePath} (one time only message)`)
+              eventHandlersOnetimeOnlyMessageDone = true
             }
 
             await crawlTransitions(transitionRoutes, context)
           }
           const crawlFlow = async (flowPath, context) => {
             const flowName = `Flow: ${nameFromPath(flowPath)}`
-            if (context.visited.includes(flowName) && !continueOnDuplicateFlow) {
-              onFinish(context, 'Flow already used, finishing conversation')
+            if (context.visitedFlow.includes(flowName) && !continueOnDuplicateFlow) {
+              onFinish(context, 'Flow already used, finishing conversation', { supressLog: true })
               return {}
             }
-            if (maxFlowsAfterEntryFlow && context.visited.includes(ENTRY_FLOW_NAME) && !context.visited.includes(flowName) && context.visited.filter(e => e.startsWith('Flow: ')).length - 1 > maxFlowsAfterEntryFlow) {
-              onFinish(context, `Flow crawling is limited to ${maxFlowsAfterEntryFlow}`)
+            if (maxFlowsAfterEntryFlow && context.visitedFlow.includes(ENTRY_FLOW_NAME) && !context.visitedFlow.includes(flowName) && context.visitedFlow.filter(e => e.startsWith('Flow: ')).length - 1 > maxFlowsAfterEntryFlow) {
+              onFinish(context, `Flow crawling is limited to ${maxFlowsAfterEntryFlow}`, { supressLog: true })
               return {}
             }
 
@@ -290,6 +361,7 @@ const importDialogflowCXIntents = async (
                 const [flow] = await flowsClient.getFlow({
                   name: flowPath
                 })
+                status(`Flow #${Object.keys(flowCache).length + 1} read ${flowPath}`)
                 flowCache[flowPath] = flow
               } catch (err) {
                 status(`Failed to get flow: ${flowPath}: ${err.message || err}`)
@@ -321,10 +393,12 @@ const importDialogflowCXIntents = async (
                 }
               }
             }
-            context.visited.push(flowName)
-            if (eventHandlers && eventHandlers.length) {
-            // we have to crawl them too?
-              status(`Event handlers detected in flow ${displayName} in path ${flowPath}`)
+            context.visitedFlow.push(flowName)
+            context.stack && context.stack.push(flowName)
+            if (eventHandlers && eventHandlers.length && !eventHandlersOnetimeOnlyMessageDone) {
+              // we have to crawl them too?
+              status(`Event handlers detected in flow ${displayName} in path ${flowPath} (one time only message)`)
+              eventHandlersOnetimeOnlyMessageDone = true
             }
             if (!transitionRoutes || transitionRoutes.length === 0) {
               status(`No transition routes detected in flow ${displayName} in path ${flowPath}`)
@@ -342,14 +416,20 @@ const importDialogflowCXIntents = async (
             await crawlTransitions(transitionRoutes, context)
           }
           const crawlingContext = {
-            visited: [],
+            visitedFlow: [],
+            visitedPage: [],
+            visitedTransition: [],
             conversation: [],
             intents: [],
-            crawlingTargetFlow: false
+            crawlingTargetFlow: false,
+            // debug things
+            stack: verbose ? [] : null,
+            finishedReasons: {}
           }
           status('Crawling conversations')
           await crawlFlow(startFlow, crawlingContext)
           status(`Crawling conversations finished, ${conversations.length} conversations found. Crawled ${Object.keys(flowCache).length} flows and ${Object.keys(pageCache).length} pages`)
+          status(`FinishedReasons ${JSON.stringify(crawlingContext.finishedReasons, null, 2)}`)
           return conversations
         } catch (err) {
           status(`Failed to crawl conversation: ${err}`)
@@ -384,7 +464,7 @@ const importDialogflowCXIntents = async (
 
       convos = conversations.map(({ conversation, intents, finishedReason }, i) => ({
         header: {
-          name: `Convo ${i}`,
+          name: `Convo ${`${i + 1}`.padStart(`${conversations.length}`.length, '0')}`,
           externalId: hash(JSON.stringify(intents))
         },
         conversation

@@ -28,7 +28,7 @@ const importDialogflowCXIntents = async (
     interval: 60 * 1000,
     rate: 99,
     concurrency: 10,
-    maxDelay: 10000
+    maxDelay: 100000
   })
   const status = (log, obj) => {
     if (obj) {

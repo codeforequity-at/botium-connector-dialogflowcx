@@ -49,13 +49,18 @@ module.exports = {
         type: 'choice',
         required: true,
         choices: [
+          { name: 'Global', key: 'global' },
           { name: 'us-central1 (Americas/Iowa)', key: 'us-central1' },
           { name: 'northamerica-northeast1 (Americas/Montréal)', key: 'northamerica-northeast1' },
           { name: 'us-east1 (Americas/South Carolina)', key: 'us-east1' },
+          { name: 'us-west1 (Americas/Oregon)', key: 'us-west1' },
           { name: 'europe-west1 (Europe/Belgium)', key: 'europe-west1' },
           { name: 'europe-west2 (Europe/London)', key: 'europe-west2' },
+          { name: 'europe-west3 (Europe/Frankfurt)', key: 'europe-west3' },
           { name: 'australia-southeast1 (Asia Pacific/Sydney)', key: 'australia-southeast1' },
-          { name: 'asia-northeast1 (Asia Pacific/Tokyo)', key: 'asia-northeast1' }
+          { name: 'asia-northeast1 (Asia Pacific/Tokyo)', key: 'asia-northeast1' },
+          { name: 'asia-south1 (Asia Pacific/Mumbai)', key: 'asia-south1' },
+          { name: 'asia-southeast1 (Asia Pacific/Singapore)', key: 'asia-southeast1' }
         ]
       },
       {

@@ -23,7 +23,7 @@ const downloadChatbot = async ({ caps }) => {
       const exportAgentRequest =
         new protos.google.cloud.dialogflow.cx.v3.ExportAgentRequest()
 
-      exportAgentRequest.name = `projects/${caps[Capabilities.DIALOGFLOWCX_PROJECT_ID]}/locations/${caps[Capabilities.DIALOGFLOWCX_LOCATION]}/agents/${caps[Capabilities.DIALOGFLOWCX_AGENT_ID]}`
+      exportAgentRequest.name = `projects/${caps[Capabilities.DIALOGFLOWCX_PROJECT_ID]}/locations/${caps[Capabilities.DIALOGFLOWCX_LOCATION] || 'global'}/agents/${caps[Capabilities.DIALOGFLOWCX_AGENT_ID]}`
       if (caps[Capabilities.DIALOGFLOWCX_ENVIRONMENT]) {
         exportAgentRequest.environment = caps[Capabilities.DIALOGFLOWCX_ENVIRONMENT]
       }

@@ -6,7 +6,8 @@ const { struct } = require('../structJson')
 const Capabilities = require('./Capabilities')
 
 const Defaults = {
-  [Capabilities.DIALOGFLOWCX_LANGUAGE_CODE]: 'en'
+  [Capabilities.DIALOGFLOWCX_LANGUAGE_CODE]: 'en',
+  [Capabilities.DIALOGFLOWCX_LOCATION]: 'global'
 }
 
 class BotiumConnectorDialogflowCX {
@@ -38,7 +39,7 @@ class BotiumConnectorDialogflowCX {
         private_key: this.caps[Capabilities.DIALOGFLOWCX_PRIVATE_KEY]
       }
     }
-    if (this.caps[Capabilities.DIALOGFLOWCX_LOCATION]) {
+    if (this.caps[Capabilities.DIALOGFLOWCX_LOCATION] && this.caps[Capabilities.DIALOGFLOWCX_LOCATION] !== 'global') {
       this.sessionOpts.apiEndpoint = `${this.caps[Capabilities.DIALOGFLOWCX_LOCATION]}-dialogflow.googleapis.com`
       debug(`Using Dialogflow apiEndpoint: ${this.sessionOpts.apiEndpoint}`)
     }

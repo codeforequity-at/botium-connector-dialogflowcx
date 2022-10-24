@@ -47,7 +47,6 @@ module.exports = {
         label: 'Location',
         description: 'You can find this in the Dialogflow CX Console',
         type: 'choice',
-        required: true,
         choices: [
           { name: 'Global', key: 'global' },
           { name: 'us-central1 (Americas/Iowa)', key: 'us-central1' },

@@ -33,14 +33,16 @@ module.exports = {
         label: 'Credentials Client Email',
         description: 'You can find this in the Google Cloud credentials file',
         type: 'string',
-        required: true
+        required: true,
+        advanced: false
       },
       {
         name: 'DIALOGFLOWCX_PRIVATE_KEY',
         label: 'Credentials Private Key',
         description: 'You can find this in the Google Cloud credentials file',
         type: 'secret',
-        required: true
+        required: true,
+        advanced: false
       },
       {
         name: 'DIALOGFLOWCX_LOCATION',
@@ -60,14 +62,17 @@ module.exports = {
           { name: 'asia-northeast1 (Asia Pacific/Tokyo)', key: 'asia-northeast1' },
           { name: 'asia-south1 (Asia Pacific/Mumbai)', key: 'asia-south1' },
           { name: 'asia-southeast1 (Asia Pacific/Singapore)', key: 'asia-southeast1' }
-        ]
+        ],
+        required: false,
+        advanced: false
       },
       {
         name: 'DIALOGFLOWCX_PROJECT_ID',
         label: 'Project Id',
         description: 'You can find this in the Dialogflow CX Console',
         type: 'string',
-        required: true
+        required: true,
+        advanced: false
       },
       {
         name: 'DIALOGFLOWCX_AGENT_ID',
@@ -75,6 +80,7 @@ module.exports = {
         description: 'You can find this in the Dialogflow CX Console',
         type: 'query',
         required: true,
+        advanced: false,
         query: async (caps) => {
           if (caps && caps.DIALOGFLOWCX_CLIENT_EMAIL && caps.DIALOGFLOWCX_PRIVATE_KEY && caps.DIALOGFLOWCX_PROJECT_ID) {
             try {
@@ -105,6 +111,7 @@ module.exports = {
         description: 'Dialogflow publishing environment Id',
         type: 'query',
         required: false,
+        advanced: true,
         query: async (caps) => {
           if (caps && caps.DIALOGFLOWCX_CLIENT_EMAIL && caps.DIALOGFLOWCX_PRIVATE_KEY && caps.DIALOGFLOWCX_PROJECT_ID && caps.DIALOGFLOWCX_AGENT_ID) {
             try {
@@ -134,6 +141,7 @@ module.exports = {
         label: 'Language Code',
         type: 'query',
         required: false,
+        advanced: true,
         query: async (caps) => {
           if (caps && caps.DIALOGFLOWCX_CLIENT_EMAIL && caps.DIALOGFLOWCX_PRIVATE_KEY && caps.DIALOGFLOWCX_PROJECT_ID && caps.DIALOGFLOWCX_AGENT_ID) {
             try {

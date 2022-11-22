@@ -189,6 +189,37 @@ module.exports = {
         run: async (caps) => {
           return getFlows({ caps })
         }
+      },
+      {
+        name: 'GetAgentMetaData',
+        description: 'GetAgentMetaData',
+        run: async (caps) => {
+          if (caps && caps.DIALOGFLOWCX_CLIENT_EMAIL && caps.DIALOGFLOWCX_PRIVATE_KEY && caps.DIALOGFLOWCX_PROJECT_ID && caps.DIALOGFLOWCX_AGENT_ID) {
+            try {
+              const agentsOpts = {
+                projectId: caps.DIALOGFLOWCX_PROJECT_ID,
+                credentials: {
+                  client_email: caps.DIALOGFLOWCX_CLIENT_EMAIL,
+                  private_key: caps.DIALOGFLOWCX_PRIVATE_KEY
+                }
+              }
+              if (caps.DIALOGFLOWCX_LOCATION) {
+                agentsOpts.apiEndpoint = `${caps.DIALOGFLOWCX_LOCATION}-dialogflow.googleapis.com`
+              }
+              const agentsClient = new AgentsClient(agentsOpts)
+              const agentResponses = await agentsClient.getAgent({ name: agentsClient.agentPath(caps.DIALOGFLOWCX_PROJECT_ID, caps.DIALOGFLOWCX_LOCATION, caps.DIALOGFLOWCX_AGENT_ID) })
+              const agentInfo = agentResponses[0]
+
+              return {
+                name: agentInfo.displayName,
+                description: agentInfo.description,
+                metadata: agentInfo
+              }
+            } catch (err) {
+              throw new Error(`Dialogflow CX Agents Query failed: ${err.message}`)
+            }
+          }
+        }
       }
     ]
   }

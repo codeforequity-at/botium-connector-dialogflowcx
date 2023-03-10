@@ -203,10 +203,12 @@ class BotiumConnectorDialogflowCX {
         const audioAttachment = this._getAudioOutput(response)
         const attachments = audioAttachment ? [audioAttachment] : []
 
+        let messageSent
         for (const responseMessage of response.queryResult.responseMessages) {
           if (responseMessage.text) {
             const messageText = responseMessage.text && responseMessage.text.text && responseMessage.text.text[0]
             setTimeout(() => this.queueBotSays({ sender: 'bot', messageText, sourceData: response.queryResult, nlp, attachments }), 0)
+            messageSent = true
           } else if (responseMessage.payload && responseMessage.payload.richContent) {
             for (const [i, richContentParts] of responseMessage.payload.richContent.entries()) {
               const botMsg = { sender: 'bot', sourceData: response.queryResult, ...(i === 0 ? { nlp, attachments } : {}) }
@@ -271,8 +273,12 @@ class BotiumConnectorDialogflowCX {
               botMsg.media = [...media]
 
               setTimeout(() => this.queueBotSays(botMsg), 0)
+              messageSent = true
             }
           }
+        }
+        if (!messageSent) {
+          setTimeout(() => this.queueBotSays({ sender: 'bot', sourceData: response.queryResult, nlp, attachments }), 0)
         }
       }).catch((err) => {
         debug(err)

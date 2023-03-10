@@ -312,7 +312,7 @@ const importDialogflowCXIntents = async (
             }
           }
           const isPageToFinish = (pagePath) => {
-            return pagePath.endsWith('/pages/END_SESSION') || pagePath.endsWith('/pages/PREVIOUS_PAGE') || pagePath.endsWith('/pages/CURRENT_PAGE') || pagePath.endsWith('/pages/START_PAGE')
+            return pagePath.endsWith('/pages/END_SESSION') || pagePath.endsWith('/pages/PREVIOUS_PAGE') || pagePath.endsWith('/pages/CURRENT_PAGE') || pagePath.endsWith('/pages/START_PAGE') || pagePath.endsWith('/pages/END_FLOW')
           }
           const crawlPage = async (pagePath, context) => {
             const pageName = `Page: ${pagePath.substring(pagePath.lastIndexOf('/'))}`

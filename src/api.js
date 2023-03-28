@@ -1,5 +1,5 @@
 const fs = require('fs')
-const { AgentsClient, FlowsClient, protos } = require('@google-cloud/dialogflow-cx')
+const { AgentsClient, FlowsClient, TestCasesClient, protos } = require('@google-cloud/dialogflow-cx')
 const { BotDriver } = require('botium-core')
 const debug = require('debug')('botium-connector-dialogflowcx-intents')
 const Capabilities = require('./Capabilities')
@@ -71,7 +71,49 @@ const getFlows = async ({ caps }) => {
   }
 }
 
+// raw implementation for testcase to convo conversion
+// created just for one-time-use.
+const getTestCases = async ({ caps }) => {
+  const driver = new BotDriver(caps)
+  const container = await driver.Build()
+  try {
+    const client = new AgentsClient(container.pluginInstance.sessionOpts)
+    const testCasesClient = new TestCasesClient(container.pluginInstance.sessionOpts)
+    const [testCases] = await testCasesClient.listTestCases({
+      parent: client.agentPath(caps[Capabilities.DIALOGFLOWCX_PROJECT_ID], caps[Capabilities.DIALOGFLOWCX_LOCATION] || 'global', caps[Capabilities.DIALOGFLOWCX_AGENT_ID]),
+      pageSize: 20,
+      view: 'FULL'
+    })
+
+    const convos = []
+    for (const testcase of testCases) {
+      let convo = `Convo ${testcase.displayName}\n`
+      for (const { userInput, virtualAgentOutput } of testcase.testCaseConversationTurns) {
+        convo += '#me\n'
+        convo += (userInput.input.text?.text || '!!!!!!!!!!!!!!!!!!!!!!') + '\n'
+        convo += '#bot\n'
+        if (virtualAgentOutput.triggeredIntent?.displayName) {
+          convo += `INTENT ${virtualAgentOutput.triggeredIntent?.displayName}`
+        }
+        convo += (virtualAgentOutput.textResponses.map(({ text }) => text).join(' ') || '!!!!!!!!!!!!!!!!!') + '\n'
+        convos.push(convo)
+      }
+    }
+
+    return { testCases, convos }
+  } finally {
+    if (container) {
+      try {
+        await container.Clean()
+      } catch (err) {
+        debug(`Error container cleanup: ${err && err.message}`)
+      }
+    }
+  }
+}
+
 module.exports = {
   downloadChatbot,
-  getFlows
+  getFlows,
+  getTestCases
 }

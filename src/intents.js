@@ -75,10 +75,6 @@ const importDialogflowCXIntents = async (
       intentIdToDialogflowIntent[intent.name] = intent
       const utteranceList = []
       for (const phrase of (intent.trainingPhrases || [])) {
-        if (phrase.parts.filter(p => p.parameterId).length > 0) {
-          // TODO
-          console.log(`phrase ===> ${JSON.stringify(phrase)}`)
-        }
         phrase.utterance = phrase.parts.map(p => p.text).join('').trim()
         if (!utteranceList.includes(phrase.utterance)) {
           utteranceList.push(phrase.utterance)

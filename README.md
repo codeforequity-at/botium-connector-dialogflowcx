@@ -110,6 +110,7 @@ Query parameters as JSON struct.
 ### DIALOGFLOWCX_WELCOME_TEXT
 
 Welcome text(s) to send to the Dialogflow CX agent for initiating the session.
+
 It is possible to send button/event instead of text
 ```
 "DIALOGFLOWCX_WELCOME_TEXT": {"buttons": [{"payload": "MyCustomEvent"}]}

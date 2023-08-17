@@ -52,6 +52,30 @@ _Already integrated into Botium Box, no setup required_
 
 Open the file _botium.json_ in your working directory and add the [Google credentials](https://cloud.google.com/docs/authentication/getting-started) for accessing your Dialogflow agent. Project Id, Agent Id and Location can be found in the [Dialogflow CX Console](https://cloud.google.com/dialogflow/cx/docs/quick/api).
 
+Following permissions/roles are required to use botium:
+
+### To test:
+#### Permission:
+dialogflow.sessions.detectIntent
+#### We suggest to use one of the following roles:
+roles/dialogflow.client
+roles/dialogflow.consoleSimulatorUser
+
+###  To use downloader (optional):
+#### Permissions:
+dialogflow.intents.list
+dialogflow.agents.get
+dialogflow.flows.get
+dialogflow.pages.get
+#### Many roles can be good, for example
+roles/dialogflow.aamViewer
+### To use uploader (optional):
+#### Permissions:
+dialogflow.intents.*
+#### Following role have this permission:
+roles/dialogflow.intentAdmin
+
+You can read about Google Dialogflow roles [here](https://cloud.google.com/iam/docs/understanding-roles#dialogflow-roles) 
 
 ```
 {

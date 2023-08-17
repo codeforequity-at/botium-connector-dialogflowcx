@@ -323,69 +323,81 @@ class BotiumConnectorDialogflowCX {
         const messageText = responseMessage.text && responseMessage.text.text && responseMessage.text.text[0]
         setTimeout(() => this.queueBotSays({ sender: 'bot', messageText, sourceData: response.queryResult, nlp, attachments }), 0)
         messageSent = true
-      } else if (responseMessage.payload && responseMessage.payload.richContent) {
-        for (const [i, richContentParts] of responseMessage.payload.richContent.entries()) {
-          const botMsg = { sender: 'bot', sourceData: response.queryResult, ...(i === 0 ? { nlp, attachments } : {}) }
+      } else if (responseMessage.payload) {
+        if (responseMessage.payload.richContent) {
+          for (const [i, richContentParts] of responseMessage.payload.richContent.entries()) {
+            const botMsg = { sender: 'bot', sourceData: response.queryResult, ...(i === 0 ? { nlp, attachments } : {}) }
 
-          const infoCards = []
-          const cards = []
-          const buttons = []
-          const chips = []
-          const media = []
+            const infoCards = []
+            const cards = []
+            const buttons = []
+            const chips = []
+            const media = []
 
-          for (const part of richContentParts) {
-            if (part.type === 'info') {
-              infoCards.push({
-                text: part.title,
-                subtext: part.subtitle,
-                content: part.text,
-                image: part.image && part.image.src && part.image.src.rawUrl && {
-                  mediaUri: part.image.src.rawUrl
-                },
-                buttons: [],
-                sourceData: part
-              })
+            for (const part of richContentParts) {
+              if (part.type === 'info') {
+                infoCards.push({
+                  text: part.title,
+                  subtext: part.subtitle,
+                  content: part.text,
+                  image: part.image && part.image.src && part.image.src.rawUrl && {
+                    mediaUri: part.image.src.rawUrl
+                  },
+                  buttons: [],
+                  sourceData: part
+                })
+              }
+              if (part.type === 'accordion' || part.type === 'description' || part.type === 'list') {
+                cards.push({
+                  text: part.title,
+                  subtext: part.subtitle,
+                  content: part.text,
+                  image: part.image && part.image.src && part.image.src.rawUrl && {
+                    mediaUri: part.image.src.rawUrl
+                  },
+                  sourceData: part
+                })
+              }
+              if (part.type === 'image') {
+                media.push({
+                  mediaUri: part.rawUrl,
+                  altText: part.accessibilityText
+                })
+              }
+              if (part.type === 'button') {
+                buttons.push({
+                  text: part.text,
+                  payload: part.link || part.event || null
+                })
+              }
+              if (part.type === 'chips') {
+                chips.push(...part.options.map(c => ({
+                  text: c.text,
+                  payload: c.link,
+                  imageUri: c.image && c.image.src && c.image.src.rawUrl
+                })))
+              }
             }
-            if (part.type === 'accordion' || part.type === 'description' || part.type === 'list') {
-              cards.push({
-                text: part.title,
-                subtext: part.subtitle,
-                content: part.text,
-                image: part.image && part.image.src && part.image.src.rawUrl && {
-                  mediaUri: part.image.src.rawUrl
-                },
-                sourceData: part
-              })
+            if (infoCards.length > 0 && buttons.length > 0) {
+              infoCards[0].buttons.push(...buttons)
+            } else if (buttons.length > 0) {
+              chips.push(...buttons)
             }
-            if (part.type === 'image') {
-              media.push({
-                mediaUri: part.rawUrl,
-                altText: part.accessibilityText
-              })
-            }
-            if (part.type === 'button') {
-              buttons.push({
-                text: part.text,
-                payload: part.link || part.event || null
-              })
-            }
-            if (part.type === 'chips') {
-              chips.push(...part.options.map(c => ({
-                text: c.text,
-                payload: c.link,
-                imageUri: c.image && c.image.src && c.image.src.rawUrl
-              })))
-            }
+            botMsg.cards = [...infoCards, ...cards]
+            botMsg.buttons = [...chips]
+            botMsg.media = [...media]
+
+            setTimeout(() => this.queueBotSays(botMsg), 0)
+            messageSent = true
           }
-          if (infoCards.length > 0 && buttons.length > 0) {
-            infoCards[0].buttons.push(...buttons)
-          } else if (buttons.length > 0) {
-            chips.push(...buttons)
-          }
-          botMsg.cards = [...infoCards, ...cards]
-          botMsg.buttons = [...chips]
-          botMsg.media = [...media]
-
+        }
+        // content returned by speakeasy? (service to enrich dialogflow cx with voice)
+        // It looks dialogflow cx supports some integratios like twilio in the box out of the box, but some not.
+        // Speakeasy is not, but it does not mean we can't support it out of the box?
+        // I did not find speakeasy documentation, solution can have some flaws
+        if (responseMessage.payload.dialogflowMessagingResponse) {
+          const res = responseMessage.payload.dialogflowMessagingResponse
+          const botMsg = { sender: 'bot', sourceData: response.queryResult, nlp, attachments, messageText: res.text, buttons: res.suggestions && res.suggestions.length ? res.suggestions.map(s => ({ text: s.text, payload: s.suggestionParams?.event })) : [] }
           setTimeout(() => this.queueBotSays(botMsg), 0)
           messageSent = true
         }

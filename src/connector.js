@@ -75,21 +75,53 @@ class BotiumConnectorDialogflowCX {
     if (!_.isNil(this.caps[Capabilities.DIALOGFLOWCX_WELCOME_TEXT])) {
       const welcomeTexts = _.isArray(this.caps[Capabilities.DIALOGFLOWCX_WELCOME_TEXT]) ? this.caps[Capabilities.DIALOGFLOWCX_WELCOME_TEXT] : [this.caps[Capabilities.DIALOGFLOWCX_WELCOME_TEXT]]
       for (const welcomeText of welcomeTexts) {
+        let messageTextAsButtonPayload
+        try {
+          // box converts string capabilities containing a json automatical to json
+          const welcomeMsg = _.isString(welcomeText) ? JSON.parse(welcomeText) : welcomeText
+          messageTextAsButtonPayload = welcomeMsg.buttons[0].payload || welcomeMsg.buttons[0].text
+        } catch (err) {}
+
         const request = {
           session: this.sessionPath,
           queryInput: {
-            text: {
-              text: welcomeText || ''
-            },
             languageCode: this.caps[Capabilities.DIALOGFLOWCX_LANGUAGE_CODE]
           }
         }
+
+        debug(`Processing dialogflow welcome text "${_.isString(welcomeText) ? welcomeText : JSON.stringify(welcomeText)}". Detected button as welcome text: ${messageTextAsButtonPayload ? JSON.stringify(messageTextAsButtonPayload) : 'N/A'}`)
+
+        if (!messageTextAsButtonPayload) {
+          request.queryInput.text = {
+            text: welcomeText || ''
+          }
+        } else {
+          try {
+            if (messageTextAsButtonPayload.name) {
+              request.queryInput.event = {
+                event: messageTextAsButtonPayload.name
+              }
+              if (messageTextAsButtonPayload.languageCode) {
+                request.queryInput.languageCode = messageTextAsButtonPayload.languageCode
+              }
+            } else {
+              request.queryInput.event = {
+                event: messageTextAsButtonPayload
+              }
+            }
+          } catch (err) {
+            request.queryInput.event = {
+              event: messageTextAsButtonPayload
+            }
+          }
+        }
+
         try {
           const responses = await this.sessionClient.detectIntent(request, this.detectIntentOpts)
-          if (responses && responses[0]) {
-            debug(`dialogflow welcome text "${welcomeText}" response: ${JSON.stringify(_.omit(responses[0], ['queryResult.diagnosticInfo', 'outputAudio']), null, 2)}`)
+          if (this.caps[Capabilities.DIALOGFLOWCX_PROCESS_WELCOME_TEXT_RESPONSE]) {
+            this._processDialogflowResponse(responses[0])
           } else {
-            debug(`dialogflow welcome text "${welcomeText}" response empty, ignoring this.`)
+            debug(`Processing of dialogflow welcome text response "${JSON.stringify(responses[0])}" skipped.`)
           }
         } catch (err) {
           debug(err)
@@ -180,107 +212,7 @@ class BotiumConnectorDialogflowCX {
 
     return this.sessionClient.detectIntent(request, this.detectIntentOpts)
       .then((responses) => {
-        const response = responses[0]
-
-        if (response.queryResult.diagnosticInfo) {
-          response.queryResult.diagnosticInfo = struct.decode(response.queryResult.diagnosticInfo)
-        }
-        if (response.queryResult.parameters) {
-          response.queryResult.parameters = struct.decode(response.queryResult.parameters)
-        }
-        if (response.queryResult.match && response.queryResult.match.parameters) {
-          response.queryResult.match.parameters = struct.decode(response.queryResult.match.parameters)
-        }
-        for (const responseMessage of response.queryResult.responseMessages) {
-          if (responseMessage.payload) {
-            responseMessage.payload = struct.decode(responseMessage.payload)
-          }
-        }
-        debug(`dialogflow response: ${JSON.stringify(_.omit(response, ['queryResult.diagnosticInfo', 'outputAudio']), null, 2)}`)
-        const nlp = {
-          intent: this._extractIntent(response),
-          entities: this._extractEntities(response)
-        }
-        const audioAttachment = this._getAudioOutput(response)
-        const attachments = audioAttachment ? [audioAttachment] : []
-
-        let messageSent
-        for (const responseMessage of response.queryResult.responseMessages) {
-          if (responseMessage.text) {
-            const messageText = responseMessage.text && responseMessage.text.text && responseMessage.text.text[0]
-            setTimeout(() => this.queueBotSays({ sender: 'bot', messageText, sourceData: response.queryResult, nlp, attachments }), 0)
-            messageSent = true
-          } else if (responseMessage.payload && responseMessage.payload.richContent) {
-            for (const [i, richContentParts] of responseMessage.payload.richContent.entries()) {
-              const botMsg = { sender: 'bot', sourceData: response.queryResult, ...(i === 0 ? { nlp, attachments } : {}) }
-
-              const infoCards = []
-              const cards = []
-              const buttons = []
-              const chips = []
-              const media = []
-
-              for (const part of richContentParts) {
-                if (part.type === 'info') {
-                  infoCards.push({
-                    text: part.title,
-                    subtext: part.subtitle,
-                    content: part.text,
-                    image: part.image && part.image.src && part.image.src.rawUrl && {
-                      mediaUri: part.image.src.rawUrl
-                    },
-                    buttons: [],
-                    sourceData: part
-                  })
-                }
-                if (part.type === 'accordion' || part.type === 'description' || part.type === 'list') {
-                  cards.push({
-                    text: part.title,
-                    subtext: part.subtitle,
-                    content: part.text,
-                    image: part.image && part.image.src && part.image.src.rawUrl && {
-                      mediaUri: part.image.src.rawUrl
-                    },
-                    sourceData: part
-                  })
-                }
-                if (part.type === 'image') {
-                  media.push({
-                    mediaUri: part.rawUrl,
-                    altText: part.accessibilityText
-                  })
-                }
-                if (part.type === 'button') {
-                  buttons.push({
-                    text: part.text,
-                    payload: part.link || part.event || null
-                  })
-                }
-                if (part.type === 'chips') {
-                  chips.push(...part.options.map(c => ({
-                    text: c.text,
-                    payload: c.link,
-                    imageUri: c.image && c.image.src && c.image.src.rawUrl
-                  })))
-                }
-              }
-              if (infoCards.length > 0 && buttons.length > 0) {
-                infoCards[0].buttons.push(...buttons)
-              } else if (buttons.length > 0) {
-                chips.push(...buttons)
-              }
-              botMsg.cards = [...infoCards, ...cards]
-              botMsg.buttons = [...chips]
-              botMsg.media = [...media]
-
-              setTimeout(() => this.queueBotSays(botMsg), 0)
-              messageSent = true
-            }
-          }
-        }
-        if (!messageSent) {
-          setTimeout(() => this.queueBotSays({ sender: 'bot', sourceData: response.queryResult, nlp, attachments }), 0)
-        }
+        this._processDialogflowResponse(responses[0])
       }).catch((err) => {
         debug(err)
         throw new Error(`Cannot send message to dialogflow container: ${err.message}, request: ${JSON.stringify(request)}`)
@@ -360,6 +292,108 @@ class BotiumConnectorDialogflowCX {
     }
     debug(`Unsupported entity kind for ${key}, skipping entity.`)
     return []
+  }
+
+  _processDialogflowResponse (response) {
+    if (response.queryResult.diagnosticInfo) {
+      response.queryResult.diagnosticInfo = struct.decode(response.queryResult.diagnosticInfo)
+    }
+    if (response.queryResult.parameters) {
+      response.queryResult.parameters = struct.decode(response.queryResult.parameters)
+    }
+    if (response.queryResult.match && response.queryResult.match.parameters) {
+      response.queryResult.match.parameters = struct.decode(response.queryResult.match.parameters)
+    }
+    for (const responseMessage of response.queryResult.responseMessages) {
+      if (responseMessage.payload) {
+        responseMessage.payload = struct.decode(responseMessage.payload)
+      }
+    }
+    debug(`dialogflow response: ${JSON.stringify(_.omit(response, ['queryResult.diagnosticInfo', 'outputAudio']), null, 2)}`)
+    const nlp = {
+      intent: this._extractIntent(response),
+      entities: this._extractEntities(response)
+    }
+    const audioAttachment = this._getAudioOutput(response)
+    const attachments = audioAttachment ? [audioAttachment] : []
+
+    let messageSent
+    for (const responseMessage of response.queryResult.responseMessages) {
+      if (responseMessage.text) {
+        const messageText = responseMessage.text && responseMessage.text.text && responseMessage.text.text[0]
+        setTimeout(() => this.queueBotSays({ sender: 'bot', messageText, sourceData: response.queryResult, nlp, attachments }), 0)
+        messageSent = true
+      } else if (responseMessage.payload && responseMessage.payload.richContent) {
+        for (const [i, richContentParts] of responseMessage.payload.richContent.entries()) {
+          const botMsg = { sender: 'bot', sourceData: response.queryResult, ...(i === 0 ? { nlp, attachments } : {}) }
+
+          const infoCards = []
+          const cards = []
+          const buttons = []
+          const chips = []
+          const media = []
+
+          for (const part of richContentParts) {
+            if (part.type === 'info') {
+              infoCards.push({
+                text: part.title,
+                subtext: part.subtitle,
+                content: part.text,
+                image: part.image && part.image.src && part.image.src.rawUrl && {
+                  mediaUri: part.image.src.rawUrl
+                },
+                buttons: [],
+                sourceData: part
+              })
+            }
+            if (part.type === 'accordion' || part.type === 'description' || part.type === 'list') {
+              cards.push({
+                text: part.title,
+                subtext: part.subtitle,
+                content: part.text,
+                image: part.image && part.image.src && part.image.src.rawUrl && {
+                  mediaUri: part.image.src.rawUrl
+                },
+                sourceData: part
+              })
+            }
+            if (part.type === 'image') {
+              media.push({
+                mediaUri: part.rawUrl,
+                altText: part.accessibilityText
+              })
+            }
+            if (part.type === 'button') {
+              buttons.push({
+                text: part.text,
+                payload: part.link || part.event || null
+              })
+            }
+            if (part.type === 'chips') {
+              chips.push(...part.options.map(c => ({
+                text: c.text,
+                payload: c.link,
+                imageUri: c.image && c.image.src && c.image.src.rawUrl
+              })))
+            }
+          }
+          if (infoCards.length > 0 && buttons.length > 0) {
+            infoCards[0].buttons.push(...buttons)
+          } else if (buttons.length > 0) {
+            chips.push(...buttons)
+          }
+          botMsg.cards = [...infoCards, ...cards]
+          botMsg.buttons = [...chips]
+          botMsg.media = [...media]
+
+          setTimeout(() => this.queueBotSays(botMsg), 0)
+          messageSent = true
+        }
+      }
+    }
+    if (!messageSent) {
+      setTimeout(() => this.queueBotSays({ sender: 'bot', sourceData: response.queryResult, nlp, attachments }), 0)
+    }
   }
 }
 

@@ -15,7 +15,6 @@ module.exports.countList = async (client, fnc, params = {}) => {
 }
 
 module.exports.getList = async (client, fnc, params = {}, limit) => {
-  console.log(`${fnc} start`)
   let nextPageToken
   let result = []
   do {

@@ -1,9 +1,19 @@
 const _ = require('lodash')
-const { AgentsClient, EnvironmentsClient } = require('@google-cloud/dialogflow-cx')
+const {
+  AgentsClient,
+  EnvironmentsClient,
+  IntentsClient,
+  FlowsClient,
+  PagesClient
+} = require('@google-cloud/dialogflow-cx')
 const BotiumConnectorDialogflowCX = require('./src/connector')
 const { importHandler, importArgs, exportHandler, exportArgs } = require('./src/intents')
 const { getFlows } = require('./src/api')
-
+const Capabilities = require('./src/Capabilities')
+const {
+  getList
+} = require('./src/helper')
+const { pRateLimit } = require('p-ratelimit')
 module.exports = {
   PluginVersion: 1,
   Import: {
@@ -43,6 +53,13 @@ module.exports = {
         type: 'secret',
         required: true,
         advanced: false
+      },
+      {
+        name: 'DIALOGFLOWCX_EXTRACT_TEST_COVERAGE',
+        label: 'Extract Test Coverage',
+        description: 'Extra requests are required. (Slower test, extra cost on Dialogflow CX side possible, extra permissions)',
+        type: 'boolean',
+        advanced: true
       },
       {
         name: 'DIALOGFLOWCX_LOCATION',
@@ -217,6 +234,90 @@ module.exports = {
               }
             } catch (err) {
               throw new Error(`Dialogflow CX Agents Query failed: ${err.message}`)
+            }
+          }
+        }
+      },
+      {
+        name: 'GetMetaData',
+        description: 'Collects global information about the chatbot state, like version, last change, all cases to test, etc',
+        run: async (caps) => {
+          if (caps && caps.DIALOGFLOWCX_CLIENT_EMAIL && caps.DIALOGFLOWCX_PRIVATE_KEY && caps.DIALOGFLOWCX_PROJECT_ID && caps.DIALOGFLOWCX_AGENT_ID && caps[Capabilities.DIALOGFLOWCX_EXTRACT_TEST_COVERAGE]) {
+            try {
+              const limit = pRateLimit({
+                interval: 60 * 1000,
+                rate: 99,
+                concurrency: 10,
+                maxDelay: 100000
+              })
+              const opts = {
+                projectId: caps.DIALOGFLOWCX_PROJECT_ID,
+                credentials: {
+                  client_email: caps.DIALOGFLOWCX_CLIENT_EMAIL,
+                  private_key: caps.DIALOGFLOWCX_PRIVATE_KEY
+                }
+              }
+              if (caps.DIALOGFLOWCX_LOCATION) {
+                opts.apiEndpoint = `${caps.DIALOGFLOWCX_LOCATION}-dialogflow.googleapis.com`
+              }
+              const pathToId = (path) => path.substring(path.lastIndexOf('/') + 1)
+              const agentsClient = new AgentsClient(opts)
+              const agentPath = agentsClient.agentPath(caps[Capabilities.DIALOGFLOWCX_PROJECT_ID], caps[Capabilities.DIALOGFLOWCX_LOCATION] || 'global', caps[Capabilities.DIALOGFLOWCX_AGENT_ID])
+              const [agent] = await limit(() => agentsClient.getAgent({
+                name: agentPath
+              }))
+
+              const intentsClient = new IntentsClient(opts)
+              const intents = await getList(intentsClient, 'listIntents', { parent: agentPath }, limit)
+              const intentIdToIntent = {}
+              intents.forEach(i => {
+                intentIdToIntent[pathToId(i.name)] = {
+                  name: i.name,
+                  displayName: i.displayName
+                }
+              })
+
+              const flowsClient = new FlowsClient(opts)
+              const flowIdToFlow = {}
+              const flowsList = await getList(flowsClient, 'listFlows', { parent: agentPath }, limit)
+
+              const pagesClient = new PagesClient(opts)
+              const pageIdToPage = {}
+              for (const flow of flowsList) {
+                flowIdToFlow[pathToId(flow.name)] = {
+                  name: flow.name,
+                  displayName: flow.displayName,
+                  transitionRoutes: (flow.transitionRoutes || []).map(t => ({
+                    intent: t.intent,
+                    condition: t.condition,
+                    name: t.name,
+                    targetFlow: t.targetFlow,
+                    targetPage: t.targetPage
+                  }))
+                }
+                const pagesList = await getList(pagesClient, 'listPages', { parent: flow.name }, limit)
+                for (const page of pagesList) {
+                  pageIdToPage[pathToId(page.name)] = {
+                    name: page.name,
+                    displayName: page.displayName,
+                    transitionRoutes: (page.transitionRoutes || []).map(t => ({
+                      intent: t.intent,
+                      condition: t.condition,
+                      name: t.name,
+                      targetFlow: t.targetFlow,
+                      targetPage: t.targetPage
+                    }))
+                  }
+                }
+              }
+              return {
+                startFlowId: pathToId(agent.startFlow),
+                intentIdToIntent,
+                flowIdToFlow,
+                pageIdToPage
+              }
+            } catch (err) {
+              throw new Error(`Dialogflow CX Get Metadata Query failed: ${err.message}`)
             }
           }
         }

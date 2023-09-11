@@ -1,9 +1,17 @@
 const { v1: uuidV1 } = require('uuid')
-const { SessionsClient } = require('@google-cloud/dialogflow-cx')
+const {
+  SessionsClient,
+  AgentsClient,
+  IntentsClient,
+  FlowsClient,
+  PagesClient
+} = require('@google-cloud/dialogflow-cx')
 const _ = require('lodash')
 const debug = require('debug')('botium-connector-dialogflowcx')
 const { struct } = require('../structJson')
 const Capabilities = require('./Capabilities')
+const { pRateLimit } = require('p-ratelimit')
+const { getList, isCommandPage, targetCommand } = require('./helper')
 
 const Defaults = {
   [Capabilities.DIALOGFLOWCX_LANGUAGE_CODE]: 'en',
@@ -228,6 +236,111 @@ class BotiumConnectorDialogflowCX {
   Clean () {
     debug('Clean called')
     this.sessionOpts = null
+  }
+
+  async GetMetaData () {
+    if (this.caps[Capabilities.DIALOGFLOWCX_EXTRACT_TEST_COVERAGE]) {
+      if (!this.caps.DIALOGFLOWCX_CLIENT_EMAIL || !this.caps.DIALOGFLOWCX_PRIVATE_KEY || !this.caps.DIALOGFLOWCX_PROJECT_ID || !this.caps.DIALOGFLOWCX_AGENT_ID) {
+        throw new Error('Invalid config!')
+      }
+      try {
+        const limit = pRateLimit({
+          interval: 60 * 1000,
+          rate: 99,
+          concurrency: 10,
+          maxDelay: 100000
+        })
+        const opts = {
+          projectId: this.caps.DIALOGFLOWCX_PROJECT_ID,
+          credentials: {
+            client_email: this.caps.DIALOGFLOWCX_CLIENT_EMAIL,
+            private_key: this.caps.DIALOGFLOWCX_PRIVATE_KEY
+          }
+        }
+        if (this.caps.DIALOGFLOWCX_LOCATION) {
+          opts.apiEndpoint = `${this.caps.DIALOGFLOWCX_LOCATION}-dialogflow.googleapis.com`
+        }
+        const pathToId = (path) => path && path.substring(path.lastIndexOf('/') + 1)
+        const agentsClient = new AgentsClient(opts)
+        const agentPath = agentsClient.agentPath(this.caps[Capabilities.DIALOGFLOWCX_PROJECT_ID], this.caps[Capabilities.DIALOGFLOWCX_LOCATION] || 'global', this.caps[Capabilities.DIALOGFLOWCX_AGENT_ID])
+        const [agent] = await limit(() => agentsClient.getAgent({
+          name: agentPath
+        }))
+
+        const intentsClient = new IntentsClient(opts)
+        const intents = await getList(intentsClient, 'listIntents', { parent: agentPath }, limit)
+        const intentIdToIntent = {}
+        intents.forEach(i => {
+          intentIdToIntent[pathToId(i.name)] = {
+            path: i.name,
+            displayName: i.displayName
+          }
+        })
+
+        const flowsClient = new FlowsClient(opts)
+        const flowIdToFlow = {}
+        const flowsList = await getList(flowsClient, 'listFlows', { parent: agentPath }, limit)
+
+        const pagesClient = new PagesClient(opts)
+        const pageIdToPage = {}
+        const transitionRoutes = (flowOrPage, rest) => {
+          return [
+            ...(flowOrPage.transitionRoutes || []).map(t => {
+              const intentId = pathToId(t.intent)
+              if (intentId && intentIdToIntent[intentId]) {
+                intentIdToIntent[intentId].used = true
+              }
+              return {
+                id: t.name,
+                intentId,
+                condition: t.condition,
+                targetFlowId: pathToId(t.targetFlow),
+                targetPageId: t.targetPage && (isCommandPage(t.targetPage) ? undefined : pathToId(t.targetPage)),
+                targetCommand: t.targetPage && (isCommandPage(t.targetPage) ? targetCommand(t.targetPage) : undefined),
+                ...rest
+              }
+            }),
+            ...(flowOrPage.eventHandlers || []).map(e => ({
+              id: e.name,
+              event: e.event,
+              targetFlowId: pathToId(e.targetFlow),
+              targetPageId: e.targetPage && (isCommandPage(e.targetPage) ? undefined : pathToId(e.targetPage)),
+              targetCommand: e.targetPage && (isCommandPage(e.targetPage) ? targetCommand(e.targetPage) : undefined),
+              ...rest
+            }))
+          ]
+        }
+        for (const flow of flowsList) {
+          const flowId = pathToId(flow.name)
+          flowIdToFlow[flowId] = {
+            path: flow.name,
+            displayName: flow.displayName,
+            transitionRoutes: transitionRoutes(flow, { flowId })
+          }
+          const pagesList = await getList(pagesClient, 'listPages', { parent: flow.name }, limit)
+          for (const page of pagesList) {
+            const pageId = pathToId(page.name)
+            pageIdToPage[pathToId(page.name)] = {
+              path: page.name,
+              displayName: page.displayName,
+              flowId,
+              transitionRoutes: transitionRoutes(page, { pageId })
+            }
+          }
+        }
+
+        return {
+          dialogflowcx: {
+            startFlowId: pathToId(agent.startFlow),
+            intentIdToIntent,
+            flowIdToFlow,
+            pageIdToPage
+          }
+        }
+      } catch (err) {
+        throw new Error(`Dialogflow CX Get Metadata Query failed: ${err.message}`)
+      }
+    }
   }
 
   _getAudioOutput (response) {

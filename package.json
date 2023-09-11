@@ -29,6 +29,10 @@
     "@babel/node": "^7.22.6",
     "@babel/plugin-transform-runtime": "^7.22.9",
     "@babel/preset-env": "^7.22.9",
+    "@rollup/plugin-babel": "^6.0.3",
+    "@rollup/plugin-commonjs": "^25.0.3",
+    "@rollup/plugin-json": "^6.0.0",
+    "@rollup/plugin-node-resolve": "^15.1.0",
     "botium-connector-dialogflowcx": "./",
     "chai": "^4.3.7",
     "chai-as-promised": "^7.1.1",
@@ -42,11 +46,7 @@
     "eslint-plugin-promise": "^6.1.1",
     "eslint-plugin-standard": "^5.0.0",
     "mocha": "^10.2.0",
-    "rollup": "^3.27.0",
-    "@rollup/plugin-babel": "^6.0.3",
-    "@rollup/plugin-commonjs": "^25.0.3",
-    "@rollup/plugin-json": "^6.0.0",
-    "@rollup/plugin-node-resolve": "^15.1.0"
+    "rollup": "^3.27.0"
   },
   "dependencies": {
     "@babel/runtime": "^7.22.6",
@@ -57,6 +57,6 @@
     "uuid": "^9.0.0"
   },
   "peerDependencies": {
-    "botium-core": "^1.13.17"
+    "botium-core": "^1.13.19"
   }
 }

@@ -15,5 +15,5 @@ describe('exporthandler', function () {
         }
       ]
     })
-  }).timeout(10000)
+  }).timeout(20000)
 })

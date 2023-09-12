@@ -17,5 +17,5 @@ describe('importhandler', function () {
     assert.equal(utterance.name, 'Default Welcome Intent')
     assert.isTrue(utterance.utterances.includes('greetings'))
     assert.isTrue(utterance.utterances.includes('hey'))
-  }).timeout(10000)
+  }).timeout(20000)
 })

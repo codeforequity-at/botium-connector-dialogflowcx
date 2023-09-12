@@ -5,8 +5,11 @@ const { pRateLimit } = require('p-ratelimit')
 const { BotDriver } = require('botium-core')
 const debug = require('debug')('botium-connector-dialogflowcx-intents')
 const Capabilities = require('./Capabilities')
+const { isCommandPage } = require('./helper')
+
 const ENTRY_FLOW_ID = '00000000-0000-0000-0000-000000000000'
 const ENTRY_FLOW_NAME = `Flow: ${ENTRY_FLOW_ID}`
+
 const importDialogflowCXIntents = async (
   {
     caps = {},
@@ -308,7 +311,7 @@ const importDialogflowCXIntents = async (
             }
           }
           const isPageToFinish = (pagePath) => {
-            return pagePath.endsWith('/pages/END_SESSION') || pagePath.endsWith('/pages/PREVIOUS_PAGE') || pagePath.endsWith('/pages/CURRENT_PAGE') || pagePath.endsWith('/pages/START_PAGE') || pagePath.endsWith('/pages/END_FLOW')
+            return isCommandPage(pagePath)
           }
           const crawlPage = async (pagePath, context) => {
             const pageName = `Page: ${pagePath.substring(pagePath.lastIndexOf('/'))}`

@@ -510,7 +510,8 @@ class BotiumConnectorDialogflowCX {
         // I did not find speakeasy documentation, solution can have some flaws
         if (responseMessage.payload.dialogflowMessagingResponse) {
           const res = responseMessage.payload.dialogflowMessagingResponse
-          const botMsg = { sender: 'bot', sourceData: response.queryResult, nlp, attachments, messageText: res.text, buttons: res.suggestions && res.suggestions.length ? res.suggestions.map(s => ({ text: s.text, payload: s.suggestionParams?.event })) : [] }
+          const messageText = (res.text || '') + ((res.text && res.richText) ? '\n' : '') + (res.richText || '')
+          const botMsg = { sender: 'bot', sourceData: response.queryResult, nlp, attachments, messageText, buttons: res.suggestions && res.suggestions.length ? res.suggestions.map(s => ({ text: s.text, payload: s.suggestionParams?.event })) : [] }
           setTimeout(() => this.queueBotSays(botMsg), 0)
           messageSent = true
         }

@@ -1,16 +1,41 @@
 const crypto = require('crypto')
 const _ = require('lodash')
-const { AgentsClient, IntentsClient, PagesClient, FlowsClient } = require('@google-cloud/dialogflow-cx')
+const { AgentsClient, IntentsClient, PagesClient, FlowsClient, TestCasesClient } = require('@google-cloud/dialogflow-cx')
 const { pRateLimit } = require('p-ratelimit')
 const { BotDriver } = require('botium-core')
 const debug = require('debug')('botium-connector-dialogflowcx-intents')
 const Capabilities = require('./Capabilities')
-const { isCommandPage } = require('./helper')
+const { isCommandPage, getList } = require('./helper')
+const { struct } = require('../structJson')
 
 const ENTRY_FLOW_ID = '00000000-0000-0000-0000-000000000000'
 const ENTRY_FLOW_NAME = `Flow: ${ENTRY_FLOW_ID}`
 
-const importDialogflowCXIntents = async (
+const importDialogflowCXIntents = (
+  {
+    source,
+    ...rest
+  }
+) => {
+  return source === 'TestSet' ? importDialogflowCXIntentsTestSet(rest) : importDialogflowCXIntentsTrainingSet(rest)
+}
+
+const limit = pRateLimit({
+  interval: 60 * 1000,
+  rate: 99,
+  concurrency: 10,
+  maxDelay: 100000
+})
+
+const nameFromPath = (path) => {
+  return path.substring(path.lastIndexOf('/') + 1)
+}
+
+const hash = (str) => {
+  return crypto.createHash('md5').update(str).digest('hex')
+}
+
+const importDialogflowCXIntentsTestSet = async (
   {
     caps = {},
     crawlConvo,
@@ -27,12 +52,6 @@ const importDialogflowCXIntents = async (
     statusCallback
   } = {}
 ) => {
-  const limit = pRateLimit({
-    interval: 60 * 1000,
-    rate: 99,
-    concurrency: 10,
-    maxDelay: 100000
-  })
   const status = (log, obj) => {
     if (obj) {
       debug(log, obj)
@@ -41,11 +60,125 @@ const importDialogflowCXIntents = async (
     }
     if (statusCallback) statusCallback(log, obj)
   }
-  const nameFromPath = (path) => {
-    return path.substring(path.lastIndexOf('/') + 1)
-  }
-  const hash = (str) => {
-    return crypto.createHash('md5').update(str).digest('hex')
+  const driver = new BotDriver(caps)
+  const container = await driver.Build()
+
+  const testCasesClient = new TestCasesClient(container.pluginInstance.sessionOpts)
+  status('Connected to Dialogflow CX TestCases Client')
+
+  const agentPath = testCasesClient.agentPath(caps[Capabilities.DIALOGFLOWCX_PROJECT_ID], caps[Capabilities.DIALOGFLOWCX_LOCATION] || 'global', caps[Capabilities.DIALOGFLOWCX_AGENT_ID])
+  const testCases = await getList(testCasesClient, 'listTestCases', { parent: agentPath, pageSize: 20, view: 'FULL' }, limit)
+
+  const convos = testCases.map(testCase => {
+    let externalId = nameFromPath(testCase.name).split('_').join()
+    // it should happen never, but to be sure
+    if (externalId.length > 32) {
+      externalId = hash(externalId)
+    }
+    const result = {
+      header: {
+        name: testCase.displayName,
+        externalId
+      },
+      conversation: []
+    }
+
+    testCase.testCaseConversationTurns.forEach(turn => {
+      if (!turn.userInput && !turn.virtualAgentOutput) {
+        status(`Illegal message format : ${JSON.stringify(turn)} in test ${testCase.displayName}`)
+        return
+      }
+      if (turn.userInput) {
+        const meMsg = {
+          sender: 'me'
+        }
+        const { input, injectedParameters, isWebhookEnabled, enableSentimentAnalysis } = turn.userInput
+        const { text, intent, audio, event, dtmf } = input || {}
+        if (text) {
+          meMsg.messageText = text.text || ''
+        } else if (event && event.event) {
+          meMsg.buttons = [{ payload: event.event }]
+        } else if (intent || audio || dtmf) {
+          status(`Not supported : ${intent ? 'intent' : audio ? 'audio' : 'dtmf'} message of the test "${testCase.displayName}"`)
+        } else {
+          status(`Empty response in the test ${testCase.displayName}`)
+        }
+        const queryParams = {}
+        if (injectedParameters) {
+          const parsed = struct.decode(injectedParameters)
+          if (Object.keys(parsed).length) {
+            queryParams.parameters = parsed
+          }
+        }
+        if (!isWebhookEnabled) {
+          queryParams.disableWebhook = true
+        }
+        if (enableSentimentAnalysis) {
+          queryParams.analyzeQueryTextSentiment = true
+        }
+        if (Object.keys(queryParams).length) {
+          meMsg.logicHooks = [
+            {
+              name: 'UPDATE_CUSTOM',
+              args: ['SET_DIALOGFLOW_CONTEXT', JSON.stringify(queryParams)]
+            }
+          ]
+        }
+
+        result.conversation.push(meMsg)
+      }
+      if (turn.virtualAgentOutput) {
+        const botMsg = {
+          sender: 'bot'
+        }
+        const { intent, textResponses } = turn.virtualAgentOutput
+        if (intent) {
+          botMsg.asserters = [
+            {
+              name: 'INTENT',
+              args: [intent]
+            }
+          ]
+        }
+        if (textResponses && textResponses.length) {
+          for (const textResponse of textResponses) {
+            result.conversation.push(Object.assign({ messageText: textResponse.text }, botMsg))
+          }
+        } else {
+          result.conversation.push(botMsg)
+        }
+      }
+    })
+    return result
+  })
+
+  return { convos }
+}
+
+const importDialogflowCXIntentsTrainingSet = async (
+  {
+    caps = {},
+    crawlConvo,
+    skipWelcomeMessage,
+    maxConversationLength = 10,
+    maxFlowsAfterEntryFlow,
+    continueOnDuplicatePage,
+    continueOnDuplicateFlow,
+    flowToCrawl,
+    flowToCrawlIncludeForeignUtterances,
+    verbose = false
+  } = {},
+  {
+    statusCallback
+  } = {}
+) => {
+  const status = (log, obj) => {
+    if (obj) {
+      debug(log, obj)
+    } else {
+      debug(log)
+    }
+    if (statusCallback) statusCallback(log, obj)
   }
 
   const driver = new BotDriver(caps)
@@ -593,12 +726,17 @@ const exportDialogflowCXIntents = async ({ caps = {}, deleteOldUtterances }, { u
 }
 
 module.exports = {
-  importHandler: ({ caps, crawlConvo, skipWelcomeMessage, maxConversationLength, continueOnDuplicatePage, continueOnDuplicateFlow, flowToCrawl, flowToCrawlIncludeForeignUtterances, maxFlowsAfterEntryFlow, ...rest } = {}, { statusCallback } = {}) => importDialogflowCXIntents({ caps, crawlConvo, skipWelcomeMessage, maxConversationLength, continueOnDuplicatePage, continueOnDuplicateFlow, flowToCrawl, flowToCrawlIncludeForeignUtterances, maxFlowsAfterEntryFlow, ...rest }, { statusCallback }),
+  importHandler: ({ caps, source, crawlConvo, skipWelcomeMessage, maxConversationLength, continueOnDuplicatePage, continueOnDuplicateFlow, flowToCrawl, flowToCrawlIncludeForeignUtterances, maxFlowsAfterEntryFlow, ...rest } = {}, { statusCallback } = {}) => importDialogflowCXIntents({ caps, source, crawlConvo, skipWelcomeMessage, maxConversationLength, continueOnDuplicatePage, continueOnDuplicateFlow, flowToCrawl, flowToCrawlIncludeForeignUtterances, maxFlowsAfterEntryFlow, ...rest }, { statusCallback }),
   importArgs: {
     caps: {
       describe: 'Capabilities',
       type: 'json',
       skipCli: true
+    },
+    source: {
+      describe: 'Source to download from',
+      choices: ['TrainingSet', 'TestSet'],
+      default: 'TrainingSet'
     },
     crawlConvo: {
       describe: 'Build convo files',

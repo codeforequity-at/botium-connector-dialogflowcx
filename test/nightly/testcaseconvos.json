@@ -1,0 +1,51 @@
+[
+  {
+    "header": {
+      "name": "event",
+      "externalId": "b23f306b5679b67099b6e4001ef0d21e"
+    },
+    "conversation": []
+  },
+  {
+    "header": {
+      "name": "dtmf",
+      "externalId": "448fe8eb08d190ec181696c9a5870d5a"
+    },
+    "conversation": []
+  },
+  {
+    "header": {
+      "name": "parameters",
+      "externalId": "33f577906a10f3ef993a6aea59ca0571"
+    },
+    "conversation": []
+  },
+  {
+    "header": {
+      "name": "claim",
+      "externalId": "133858aa5fbc0ac9b83e20ee69f25a25"
+    },
+    "conversation": []
+  },
+  {
+    "header": {
+      "name": "find doctor",
+      "externalId": "01f17169eb7ca87248743563b8777ead"
+    },
+    "conversation": []
+  },
+  {
+    "header": {
+      "name": "changingparams",
+      "externalId": "eb824d27008386761230eebdcabe2465"
+    },
+    "conversation": []
+  },
+  {
+    "header": {
+      "name": "hello",
+      "externalId": "66aff4a3cc167124aa7b0513009b5379"
+    },
+    "conversation": []
+  }
+]

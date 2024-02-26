@@ -18,10 +18,10 @@ module.exports.getList = async (client, fnc, params = {}, limit) => {
   let nextPageToken
   let result = []
   do {
-    params = Object.assign({}, params, {
+    params = Object.assign({}, {
       pageToken: nextPageToken,
-      pageSize: 2
-    })
+      pageSize: 100
+    }, params)
 
     const response = await limit(() => client[fnc](params))
     result = result.concat(response[0])

@@ -128,7 +128,7 @@ describe('connector', function () {
   it('should extract global info for test coverage', async function () {
     await this.init({ [Capabilities.DIALOGFLOWCX_EXTRACT_TEST_COVERAGE]: true })
 
-    const res = await this.connector.GetMetaData({})
+    const res = await this.connector.GetMetaData({ })
 
     assert.equal(res.dialogflowcx.startFlowId, '00000000-0000-0000-0000-000000000000')
 

@@ -94,6 +94,37 @@ describe('connector', function () {
     })
   }).timeout(20000)
 
+  it('should add query parameters in welcome', async function () {
+    await this.init({
+      [Capabilities.DIALOGFLOWCX_PROCESS_WELCOME_TEXT_RESPONSE]: true,
+      [Capabilities.DIALOGFLOWCX_QUERY_PARAMS]: {
+        parameters: {
+          someParameterKey: 'someParameterValue'
+        }
+      }
+    })
+    // skip welcome message response
+    const res0 = await this._nextBotMsg()
+    assert.equal(res0.messageText, 'custom event received')
+    assert.deepEqual(res0.sourceData.parameters?.someParameterKey, 'someParameterValue')
+  })
+
+  it('should not add query parameters in welcome if its turned off', async function () {
+    await this.init({
+      [Capabilities.DIALOGFLOWCX_PROCESS_WELCOME_TEXT_RESPONSE]: true,
+      [Capabilities.DIALOGFLOWCX_IGNORE_QUERY_PARAMS_FOR_WELCOME]: true,
+      [Capabilities.DIALOGFLOWCX_QUERY_PARAMS]: {
+        parameters: {
+          someParameterKey: 'someParameterValue'
+        }
+      }
+    })
+    // skip welcome message response
+    const res0 = await this._nextBotMsg()
+    assert.equal(res0.messageText, 'custom event received')
+    assert.notExists(res0.sourceData.parameters?.someParameterKey)
+  })
+
   it('should extract global info for test coverage', async function () {
     await this.init({ [Capabilities.DIALOGFLOWCX_EXTRACT_TEST_COVERAGE]: true })
 

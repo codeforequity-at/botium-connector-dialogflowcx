@@ -97,6 +97,10 @@ class BotiumConnectorDialogflowCX {
           }
         }
 
+        if (!this.caps[Capabilities.DIALOGFLOWCX_IGNORE_QUERY_PARAMS_FOR_WELCOME]) {
+          this._updateQueryParams(request)
+        }
+
         debug(`Processing dialogflow welcome text "${_.isString(welcomeText) ? welcomeText : JSON.stringify(welcomeText)}". Detected button as welcome text: ${messageTextAsButtonPayload ? JSON.stringify(messageTextAsButtonPayload) : 'N/A'}`)
 
         if (!messageTextAsButtonPayload) {
@@ -133,7 +137,7 @@ class BotiumConnectorDialogflowCX {
           }
         } catch (err) {
           debug(err)
-          throw new Error(`Cannot send welcome message "${welcomeText}" to dialogflow container: ${err.message}, request: ${JSON.stringify(request)}`)
+          throw new Error(`Cannot send welcome message "${_.isString(welcomeText) ? welcomeText : JSON.stringify(welcomeText)}" to dialogflow container: ${err.message}, request: ${JSON.stringify(request)}`)
         }
       }
     }
@@ -207,13 +211,7 @@ class BotiumConnectorDialogflowCX {
       Object.assign(mergeQueryParams, msg.SET_DIALOGFLOWCX_QUERYPARAMS)
     }
 
-    request.queryParams = Object.assign({}, this.queryParams, mergeQueryParams)
-    if (request.queryParams.payload) {
-      request.queryParams.payload = struct.encode(request.queryParams.payload)
-    }
-    if (request.queryParams.parameters) {
-      request.queryParams.parameters = struct.encode(request.queryParams.parameters)
-    }
+    this._updateQueryParams(request, mergeQueryParams)
 
     debug(`dialogflow request: ${JSON.stringify(_.omit(request, ['queryInput.audio']), null, 2)}`)
     msg.sourceData = request
@@ -340,6 +338,16 @@ class BotiumConnectorDialogflowCX {
       } catch (err) {
         throw new Error(`Dialogflow CX Get Metadata Query failed: ${err.message}`)
       }
+    }
+  }
+
+  _updateQueryParams (request, queryParams) {
+    request.queryParams = Object.assign({}, this.queryParams, queryParams || {})
+    if (request.queryParams.payload) {
+      request.queryParams.payload = struct.encode(request.queryParams.payload)
+    }
+    if (request.queryParams.parameters) {
+      request.queryParams.parameters = struct.encode(request.queryParams.parameters)
     }
   }
 

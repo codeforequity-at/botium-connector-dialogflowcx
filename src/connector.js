@@ -128,6 +128,8 @@ class BotiumConnectorDialogflowCX {
           }
         }
 
+        debug(`dialogflow request: ${JSON.stringify(_.omit(request, ['queryInput.audio']), null, 2)}`)
+
         try {
           const responses = await this.sessionClient.detectIntent(request, this.detectIntentOpts)
           if (this.caps[Capabilities.DIALOGFLOWCX_PROCESS_WELCOME_TEXT_RESPONSE]) {
@@ -520,6 +522,18 @@ class BotiumConnectorDialogflowCX {
           const res = responseMessage.payload.dialogflowMessagingResponse
           const messageText = (res.text || '') + ((res.text && res.richText) ? '\n' : '') + (res.richText || '')
           const botMsg = { sender: 'bot', sourceData: response.queryResult, nlp, attachments, messageText, buttons: res.suggestions && res.suggestions.length ? res.suggestions.map(s => ({ text: s.text, payload: s.suggestionParams?.event })) : [] }
+          setTimeout(() => this.queueBotSays(botMsg), 0)
+          messageSent = true
+        }
+        // another custom payload format (apigee?)
+        if (responseMessage.payload.type === 'custom_template' && responseMessage.payload.data && (responseMessage.payload.data.ctas?.length || responseMessage.payload.data.text)) {
+          const data = responseMessage.payload.data
+          const messageText = data.text || ''
+          const buttons = (data.ctas || []).map(({ title, payload }) => ({
+            text: title,
+            payload: payload
+          }))
+          const botMsg = { sender: 'bot', sourceData: response.queryResult, nlp, attachments, messageText, buttons }
           setTimeout(() => this.queueBotSays(botMsg), 0)
           messageSent = true
         }

@@ -529,14 +529,13 @@ class BotiumConnectorDialogflowCX {
         if (responseMessage.payload.type === 'custom_template' && responseMessage.payload.data && (responseMessage.payload.data.ctas?.length || responseMessage.payload.data.text)) {
           const data = responseMessage.payload.data
           const messageText = data.text || ''
-          const buttons = (data.ctas || []).map(({ title, payload }) => {
-            payload = '\\ok{}'
-            if (payload.startsWith('\\') && payload.indexOf('{') > 0) {
+          const buttons = (data.ctas || []).map(({ title, payload, url }) => {
+            if (payload && payload.startsWith('\\') && payload.indexOf('{') > 0) {
               payload = payload.substring(1, payload.indexOf('{'))
             }
             return {
               text: title,
-              payload: payload
+              payload: payload || url
             }
           })
           const botMsg = { sender: 'bot', sourceData: response.queryResult, nlp, attachments, messageText, buttons }

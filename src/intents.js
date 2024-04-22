@@ -120,7 +120,7 @@ const importDialogflowCXIntentsTestSet = async (
           meMsg.logicHooks = [
             {
               name: 'UPDATE_CUSTOM',
-              args: ['SET_DIALOGFLOW_CONTEXT', JSON.stringify(queryParams)]
+              args: ['SET_DIALOGFLOWCX_QUERYPARAMS', JSON.stringify(queryParams)]
             }
           ]
         }
@@ -202,6 +202,7 @@ const importDialogflowCXIntentsTrainingSet = async (
 
     const [intents] = await limit(() => intentsClient.listIntents({
       parent: agentPath,
+      languageCode: caps[Capabilities.DIALOGFLOWCX_LANGUAGE_CODE] || undefined,
       pageSize: 1000
     }))
 

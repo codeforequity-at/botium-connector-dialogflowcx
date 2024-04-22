@@ -542,6 +542,20 @@ class BotiumConnectorDialogflowCX {
           setTimeout(() => this.queueBotSays(botMsg), 0)
           messageSent = true
         }
+
+        // another custom payload format?
+        if (responseMessage.payload.quickReplies?.replies) {
+          const messageText = responseMessage.payload.quickReplies.title
+          const buttons = responseMessage.payload.quickReplies.replies.map(({ text, responsePayload }) => {
+            return {
+              text: text,
+              payload: responsePayload
+            }
+          })
+          const botMsg = { sender: 'bot', sourceData: response.queryResult, nlp, attachments, messageText, buttons }
+          setTimeout(() => this.queueBotSays(botMsg), 0)
+          messageSent = true
+        }
       }
     }
     if (!messageSent) {

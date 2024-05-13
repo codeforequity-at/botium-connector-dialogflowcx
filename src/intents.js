@@ -7,17 +7,25 @@ const debug = require('debug')('botium-connector-dialogflowcx-intents')
 const Capabilities = require('./Capabilities')
 const { isCommandPage, getList } = require('./helper')
 const { struct } = require('../structJson')
+const { downloadChatbot } = require('./api')
 
 const ENTRY_FLOW_ID = '00000000-0000-0000-0000-000000000000'
 const ENTRY_FLOW_NAME = `Flow: ${ENTRY_FLOW_ID}`
 
-const importDialogflowCXIntents = (
-  {
-    source,
-    ...rest
+const importDialogflowCXIntents = ({ ...params }) => {
+  params.source = params.source || 'TrainingSetUtteranceIncluded'
+  const { source, crawlConvo } = params
+
+  if (source === 'TestSet') {
+    return importDialogflowCXIntentsTestSet(params)
+  } else {
+    if (crawlConvo || source === 'TrainingSetConvo') {
+      // legacy mode. Should be removed
+      return importDialogflowCXIntentsTrainingSet(params)
+    } else {
+      return importDialogflowCXIntentsTrainingSetViaDownload(params)
+    }
   }
-) => {
-  return source === 'TestSet' ? importDialogflowCXIntentsTestSet(rest) : importDialogflowCXIntentsTrainingSet(rest)
 }
 
 const limit = pRateLimit({
@@ -155,9 +163,12 @@ const importDialogflowCXIntentsTestSet = async (
   return { convos }
 }
 
+// plan is to use downloader for the crawler in importDialogflowCXIntentsTrainingSetViaDownload,
+// and delete this function
 const importDialogflowCXIntentsTrainingSet = async (
   {
     caps = {},
+    source,
     crawlConvo,
     skipWelcomeMessage,
     maxConversationLength = 10,
@@ -172,6 +183,9 @@ const importDialogflowCXIntentsTrainingSet = async (
     statusCallback
   } = {}
 ) => {
+  if (source === 'TrainingSetConvo') {
+    crawlConvo = true
+  }
   const status = (log, obj) => {
     if (obj) {
       debug(log, obj)
@@ -186,6 +200,7 @@ const importDialogflowCXIntentsTrainingSet = async (
 
   try {
     status(`Starting download from Dialogflow CX Intets Client ${JSON.stringify({
+      source,
       crawlConvo,
       skipWelcomeMessage,
       maxConversationLength,
@@ -231,7 +246,7 @@ const importDialogflowCXIntentsTrainingSet = async (
           name: intent.displayName,
           externalId,
           utterances: utteranceList,
-          include: !flowToCrawl || !crawlConvo
+          include: !crawlConvo
         }
       }
     }
@@ -629,6 +644,142 @@ const importDialogflowCXIntentsTrainingSet = async (
   }
 }
 
+const importDialogflowCXIntentsTrainingSetViaDownload = async (
+  {
+    caps = {},
+    source,
+    crawlConvo,
+    skipWelcomeMessage,
+    maxConversationLength = 10,
+    maxFlowsAfterEntryFlow,
+    continueOnDuplicatePage,
+    continueOnDuplicateFlow,
+    flowToCrawl,
+    flowToCrawlIncludeForeignUtterances,
+    verbose = false
+  } = {},
+  {
+    statusCallback
+  } = {}
+) => {
+  const status = (log, obj) => {
+    if (obj) {
+      debug(log, obj)
+    } else {
+      debug(log)
+    }
+    if (statusCallback) statusCallback(log, obj)
+  }
+
+  const driver = new BotDriver(caps)
+  const container = await driver.Build()
+
+  try {
+    status(`Starting download from Dialogflow CX Intets Client ${JSON.stringify({
+      source,
+      crawlConvo,
+      skipWelcomeMessage,
+      maxConversationLength,
+      continueOnDuplicatePage,
+      continueOnDuplicateFlow,
+      flowToCrawl,
+      flowToCrawlIncludeForeignUtterances
+    })}`)
+
+    // we need the zip to have env specific intents and flows
+    const zip = await downloadChatbot({ caps })
+
+    const agent = zip.getEntry('agent.json')
+    const languageCode = caps[Capabilities.DIALOGFLOWCX_LANGUAGE_CODE] || agent.defaultLanguageCode
+
+    let intentTemp = {}
+    zip.getEntries().filter(e => e.entryName.startsWith('intents/') && e.entryName.endsWith('.json')).forEach(async (zipEntry) => {
+      const path = zipEntry.entryName.split('/')
+      const nameFromPath = path[1]
+      if (!intentTemp[nameFromPath]) {
+        intentTemp[nameFromPath] = {}
+      }
+      const json = JSON.parse(zipEntry.getData().toString('utf8'))
+      if (path.length === 4 && path[2] === 'trainingPhrases') {
+        // intents/GREETING/trainingPhrases/en.json
+        const entryLanguageCode = path[3].substring(0, path[3].length - '.json'.length)
+        if (!intentTemp[nameFromPath].trainingPhrases || languageCode.startsWith(entryLanguageCode)) {
+          intentTemp[nameFromPath].trainingPhrases = json.trainingPhrases
+        }
+      } else if (path.length === 3) {
+        intentTemp[nameFromPath].name = json.name
+        intentTemp[nameFromPath].displayName = json.displayName
+      } else {
+        status(`Unknown file in downloaded zip ${zipEntry.entryName}`)
+      }
+    })
+
+    const utterances = {}
+    for (const intent of Object.values(intentTemp)) {
+      const utteranceList = []
+      for (const phrase of (intent.trainingPhrases || [])) {
+        phrase.utterance = phrase.parts.map(p => p.text).join('').trim()
+        if (!utteranceList.includes(phrase.utterance)) {
+          utteranceList.push(phrase.utterance)
+        }
+      }
+      if (!utteranceList.length) {
+        status(`Ignoring "${intent.displayName}" from utterances because no entry found`)
+      } else {
+        // max length of the externalId is 32.
+        // it looks name without '_' is exactly 32 length
+        let externalId = intent.name.split('_').join()
+        // it should happen never, but to be sure
+        if (externalId.length > 32) {
+          externalId = hash(externalId)
+        }
+        utterances[intent.displayName] = {
+          name: intent.displayName,
+          externalId,
+          utterances: utteranceList,
+          include: source === 'TrainingSetUtterance'
+        }
+      }
+    }
+    intentTemp = null
+    status(`Succesfully extracted ${Object.keys(utterances).length} utterances`)
+
+    if (source !== 'TrainingSetUtterance') {
+      zip.getEntries().filter(e => e.entryName.startsWith('flows/') && e.entryName.endsWith('.json')).forEach(async (zipEntry) => {
+        try {
+          const json = JSON.parse(zipEntry.getData().toString('utf8'))
+          if (json.transitionRoutes) {
+            for (const t of json.transitionRoutes) {
+              if (t.intent) {
+                utterances[t.intent].include = true
+              }
+            }
+          }
+        } catch (err) {
+          status(`Failed to process: ${zipEntry.entryName}: ${err.message || err}`)
+        }
+      })
+    }
+
+    return {
+      convos: [],
+      utterances: Object.values(utterances).filter(u => u.include).map(u => ({
+        externalId: u.externalId,
+        name: u.name,
+        utterances: u.utterances
+      }))
+    }
+  } finally {
+    if (container) {
+      try {
+        await container.Clean()
+      } catch (err) {
+        debug(`Error container cleanup: ${err && err.message}`)
+      }
+    }
+  }
+}
+
 const exportDialogflowCXIntents = async ({ caps = {}, deleteOldUtterances }, { utterances, convos }, { statusCallback } = {}) => {
   const status = (log, obj) => {
     if (obj) {
@@ -736,9 +887,10 @@ module.exports = {
     },
     source: {
       describe: 'Source to download from',
-      choices: ['TrainingSet', 'TestSet'],
-      default: 'TrainingSet'
+      choices: [/* crawl convo and utterances. Old scool, remove this prop */'TrainingSet', /* currently same as TrainingSet */ 'TrainingSetConvo', 'TrainingSetUtterance', 'TrainingSetUtteranceIncluded', 'TestSet'],
+      default: 'TrainingSetUtteranceIncluded'
     },
+    // works just for TrainingSet mode. so this flag should be removed, and covered via a new source entry
     crawlConvo: {
       describe: 'Build convo files',
       type: 'boolean',

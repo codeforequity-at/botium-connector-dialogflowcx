@@ -1,8 +1,8 @@
-const fs = require('fs')
 const { AgentsClient, FlowsClient, TestCasesClient, protos } = require('@google-cloud/dialogflow-cx')
 const { BotDriver } = require('botium-core')
 const debug = require('debug')('botium-connector-dialogflowcx-intents')
 const Capabilities = require('./Capabilities')
+const AdmZip = require('adm-zip')
 
 const downloadChatbot = async ({ caps }) => {
   const status = (log, obj) => {
@@ -24,8 +24,9 @@ const downloadChatbot = async ({ caps }) => {
         new protos.google.cloud.dialogflow.cx.v3.ExportAgentRequest()
 
       exportAgentRequest.name = `projects/${caps[Capabilities.DIALOGFLOWCX_PROJECT_ID]}/locations/${caps[Capabilities.DIALOGFLOWCX_LOCATION] || 'global'}/agents/${caps[Capabilities.DIALOGFLOWCX_AGENT_ID]}`
+      exportAgentRequest.dataFormat = 'JSON_PACKAGE'
       if (caps[Capabilities.DIALOGFLOWCX_ENVIRONMENT]) {
-        exportAgentRequest.environment = caps[Capabilities.DIALOGFLOWCX_ENVIRONMENT]
+        exportAgentRequest.environment = client.environmentPath(caps[Capabilities.DIALOGFLOWCX_PROJECT_ID], caps[Capabilities.DIALOGFLOWCX_LOCATION] || 'global', caps[Capabilities.DIALOGFLOWCX_AGENT_ID], caps[Capabilities.DIALOGFLOWCX_ENVIRONMENT])
       }
       status(`Using Dialogflow CX project "${exportAgentRequest.name}" environment ${exportAgentRequest.environment}`)
       // exportAgent call returns a promise to a long running operation
@@ -34,8 +35,7 @@ const downloadChatbot = async ({ caps }) => {
       // Waiting for the long running opporation to finish
       const [response] = await operation.promise()
 
-      // Prints the result of the operation when the operation is done
-      fs.writeFileSync('chatbot.bin', response.agentContent, 'binary')
+      return new AdmZip(Buffer.from(response.agentContent || response.response.value, 'base64'))
     } catch (err) {
       throw new Error(`Dialogflow CX API download current intents failed: ${err && err.message}`)
     }

@@ -1,8 +1,11 @@
 const crypto = require('crypto')
+const fs = require('fs')
 const _ = require('lodash')
 const { AgentsClient, IntentsClient, PagesClient, FlowsClient, TestCasesClient } = require('@google-cloud/dialogflow-cx')
 const { pRateLimit } = require('p-ratelimit')
 const { BotDriver } = require('botium-core')
+// node-stream-zip uses less memory for working with zip files.
+const StreamZip = require('node-stream-zip')
 const debug = require('debug')('botium-connector-dialogflowcx-intents')
 const Capabilities = require('./Capabilities')
 const { isCommandPage, getList } = require('./helper')
@@ -648,6 +651,8 @@ const importDialogflowCXIntentsTrainingSetViaDownload = async (
   {
     caps = {},
     source,
+    googleCloudStorage,
+    workdir,
     crawlConvo,
     skipWelcomeMessage,
     maxConversationLength = 10,
@@ -672,12 +677,15 @@ const importDialogflowCXIntentsTrainingSetViaDownload = async (
   }
 
   const driver = new BotDriver(caps)
-  const container = await driver.Build()
+  let container = await driver.Build()
 
+  let zipName
+  let zip
   try {
     status(`Starting download from Dialogflow CX Intets Client ${JSON.stringify({
       source,
       crawlConvo,
+      workdir,
       skipWelcomeMessage,
       maxConversationLength,
       continueOnDuplicatePage,
@@ -687,19 +695,22 @@ const importDialogflowCXIntentsTrainingSetViaDownload = async (
     })}`)
 
     // we need the zip to have env specific intents and flows
-    const zip = await downloadChatbot({ caps })
-
-    const agent = zip.getEntry('agent.json')
+    zipName = await downloadChatbot({ caps, googleCloudStorage, workdir, status })
+    // eslint-disable-next-line new-cap
+    zip = new StreamZip.async({ file: zipName })
+    const agent = JSON.parse((await zip.entryData('agent.json')).toString('utf8'))
     const languageCode = caps[Capabilities.DIALOGFLOWCX_LANGUAGE_CODE] || agent.defaultLanguageCode
 
     let intentTemp = {}
-    zip.getEntries().filter(e => e.entryName.startsWith('intents/') && e.entryName.endsWith('.json')).forEach(async (zipEntry) => {
-      const path = zipEntry.entryName.split('/')
+
+    const entries = await zip.entries()
+    for (const entry of Object.values(entries).filter(e => e.name.startsWith('intents/') && e.name.endsWith('.json'))) {
+      const path = entry.name.split('/')
       const nameFromPath = path[1]
       if (!intentTemp[nameFromPath]) {
         intentTemp[nameFromPath] = {}
       }
-      const json = JSON.parse(zipEntry.getData().toString('utf8'))
+      const json = JSON.parse((await zip.entryData(entry.name)).toString('utf8'))
       if (path.length === 4 && path[2] === 'trainingPhrases') {
         // intents/GREETING/trainingPhrases/en.json
         const entryLanguageCode = path[3].substring(0, path[3].length - '.json'.length)
@@ -710,9 +721,9 @@ const importDialogflowCXIntentsTrainingSetViaDownload = async (
         intentTemp[nameFromPath].name = json.name
         intentTemp[nameFromPath].displayName = json.displayName
       } else {
-        status(`Unknown file in downloaded zip ${zipEntry.entryName}`)
+        status(`Unknown file in downloaded zip ${entry.name}`)
       }
-    })
+    }
 
     const utterances = {}
     for (const intent of Object.values(intentTemp)) {
@@ -745,9 +756,9 @@ const importDialogflowCXIntentsTrainingSetViaDownload = async (
     status(`Succesfully extracted ${Object.keys(utterances).length} utterances`)
 
     if (source !== 'TrainingSetUtterance') {
-      zip.getEntries().filter(e => e.entryName.startsWith('flows/') && e.entryName.endsWith('.json')).forEach(async (zipEntry) => {
+      for (const entry of Object.values(entries).filter(e => e.name.startsWith('flows/') && e.name.endsWith('.json'))) {
         try {
-          const json = JSON.parse(zipEntry.getData().toString('utf8'))
+          const json = JSON.parse((await zip.entryData(entry.name)).toString('utf8'))
           if (json.transitionRoutes) {
             for (const t of json.transitionRoutes) {
               if (t.intent) {
@@ -756,10 +767,14 @@ const importDialogflowCXIntentsTrainingSetViaDownload = async (
             }
           }
         } catch (err) {
-          status(`Failed to process: ${zipEntry.entryName}: ${err.message || err}`)
+          status(`Failed to process: ${entry.name}: ${err.message || err}`)
         }
-      })
+      }
     }
+    zip.close()
+    zip = null
+    fs.rmSync(zipName, { force: true })
+    zipName = null
 
     return {
       convos: [],
@@ -776,6 +791,18 @@ const importDialogflowCXIntentsTrainingSetViaDownload = async (
       } catch (err) {
         debug(`Error container cleanup: ${err && err.message}`)
       }
+      container = null
+    }
+    if (zip) {
+      try {
+        zip.close()
+      } catch (err) {
+        debug(`Error zip cleanup: ${err && err.message}`)
+      }
+      zip = null
+    }
+    if (zipName) {
+      fs.rmSync(zipName, { force: true })
     }
   }
 }
@@ -878,7 +905,7 @@ const exportDialogflowCXIntents = async ({ caps = {}, deleteOldUtterances }, { u
 }
 
 module.exports = {
-  importHandler: ({ caps, source, crawlConvo, skipWelcomeMessage, maxConversationLength, continueOnDuplicatePage, continueOnDuplicateFlow, flowToCrawl, flowToCrawlIncludeForeignUtterances, maxFlowsAfterEntryFlow, ...rest } = {}, { statusCallback } = {}) => importDialogflowCXIntents({ caps, source, crawlConvo, skipWelcomeMessage, maxConversationLength, continueOnDuplicatePage, continueOnDuplicateFlow, flowToCrawl, flowToCrawlIncludeForeignUtterances, maxFlowsAfterEntryFlow, ...rest }, { statusCallback }),
+  importHandler: ({ caps, source, googleCloudStorage, workdir, crawlConvo, skipWelcomeMessage, maxConversationLength, continueOnDuplicatePage, continueOnDuplicateFlow, flowToCrawl, flowToCrawlIncludeForeignUtterances, maxFlowsAfterEntryFlow, ...rest } = {}, { statusCallback } = {}) => importDialogflowCXIntents({ caps, source, crawlConvo, googleCloudStorage, workdir, skipWelcomeMessage, maxConversationLength, continueOnDuplicatePage, continueOnDuplicateFlow, flowToCrawl, flowToCrawlIncludeForeignUtterances, maxFlowsAfterEntryFlow, ...rest }, { statusCallback }),
   importArgs: {
     caps: {
       describe: 'Capabilities',
@@ -889,6 +916,14 @@ module.exports = {
       describe: 'Source to download from',
       choices: [/* crawl convo and utterances. Old scool, remove this prop */'TrainingSet', /* currently same as TrainingSet */ 'TrainingSetConvo', 'TrainingSetUtterance', 'TrainingSetUtteranceIncluded', 'TestSet'],
       default: 'TrainingSetUtteranceIncluded'
+    },
+    googleCloudStorage: {
+      describe: 'Google cloud storage to store the chatbot export.',
+      type: 'string'
+    },
+    workdir: {
+      describe: 'Directory for temporary files',
+      type: 'string'
     },
     // works just for TrainingSet mode. so this flag should be removed, and covered via a new source entry
     crawlConvo: {

@@ -714,7 +714,7 @@ const importDialogflowCXIntentsTrainingSetViaDownload = async (
       if (path.length === 4 && path[2] === 'trainingPhrases') {
         // intents/GREETING/trainingPhrases/en.json
         const entryLanguageCode = path[3].substring(0, path[3].length - '.json'.length)
-        if (!intentTemp[nameFromPath].trainingPhrases || languageCode.startsWith(entryLanguageCode)) {
+        if (!intentTemp[nameFromPath].trainingPhrases || languageCode === entryLanguageCode) {
           intentTemp[nameFromPath].trainingPhrases = json.trainingPhrases
         }
       } else if (path.length === 3) {

@@ -45,7 +45,6 @@ describe('importhandler', function () {
         [Capabilities.DIALOGFLOWCX_ENVIRONMENT]: undefined,
         [Capabilities.DIALOGFLOWCX_LANGUAGE_CODE]: 'de_DE'
       })
-      caps[Capabilities.DIALOGFLOWCX_ENVIRONMENT] = undefined
       const result = await importHandler({ source: 'TrainingSetUtteranceIncluded', caps })
 
       assert.isFalse(!!result.convos?.length)

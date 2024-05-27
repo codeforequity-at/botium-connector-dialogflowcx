@@ -182,8 +182,12 @@ class BotiumConnectorDialogflowCX {
     } else if (msg.buttons && msg.buttons.length > 0 && (msg.buttons[0].text || msg.buttons[0].payload)) {
       let payload = msg.buttons[0].payload || msg.buttons[0].text
       try {
-        payload = JSON.parse(payload)
-        if (payload.name) {
+        payload = _.isString(payload) ? JSON.parse(payload) : payload
+        if (!_.isNil(payload.forceMessageText)) {
+          request.queryInput.text = {
+            text: JSON.stringify(payload.forceMessageText)
+          }
+        } else if (payload.name) {
           request.queryInput.event = {
             event: payload.name
           }
@@ -543,13 +547,13 @@ class BotiumConnectorDialogflowCX {
           messageSent = true
         }
 
-        // another custom payload format?
+        // another custom payload format for Telus.
         if (responseMessage.payload.quickReplies?.replies) {
           const messageText = responseMessage.payload.quickReplies.title
           const buttons = responseMessage.payload.quickReplies.replies.map(({ text, responsePayload }) => {
             return {
               text: text,
-              payload: responsePayload
+              payload: { forceMessageText: responsePayload || text }
             }
           })
           const botMsg = { sender: 'bot', sourceData: response.queryResult, nlp, attachments, messageText, buttons }

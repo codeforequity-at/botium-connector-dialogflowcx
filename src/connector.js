@@ -185,7 +185,7 @@ class BotiumConnectorDialogflowCX {
         payload = _.isString(payload) ? JSON.parse(payload) : payload
         if (!_.isNil(payload.forceMessageText)) {
           request.queryInput.text = {
-            text: JSON.stringify(payload.forceMessageText)
+            text: payload.forceMessageText
           }
         } else if (payload.name) {
           request.queryInput.event = {

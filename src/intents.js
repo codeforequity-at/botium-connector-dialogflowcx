@@ -22,7 +22,7 @@ const importDialogflowCXIntents = ({ ...params }) => {
   if (source === 'TestSet') {
     return importDialogflowCXIntentsTestSet(params)
   } else {
-    if (crawlConvo || source === 'TrainingSetConvo') {
+    if (crawlConvo || source === 'TrainingSetConvo' || source === 'TrainingSet') {
       // legacy mode. Should be removed
       return importDialogflowCXIntentsTrainingSet(params)
     } else {
@@ -71,6 +71,7 @@ const importDialogflowCXIntentsTestSet = async (
     }
     if (statusCallback) statusCallback(log, obj)
   }
+  status('Download mode: Test Set')
   const driver = new BotDriver(caps)
   const container = await driver.Build()
 
@@ -189,6 +190,7 @@ const importDialogflowCXIntentsTrainingSet = async (
   if (source === 'TrainingSetConvo') {
     crawlConvo = true
   }
+
   const status = (log, obj) => {
     if (obj) {
       debug(log, obj)
@@ -197,6 +199,8 @@ const importDialogflowCXIntentsTrainingSet = async (
     }
     if (statusCallback) statusCallback(log, obj)
   }
+
+  status(`Download mode: Training Set, legacy mode, crawling ${crawlConvo ? 'on' : 'off'} `)
 
   const driver = new BotDriver(caps)
   const container = await driver.Build()
@@ -675,6 +679,8 @@ const importDialogflowCXIntentsTrainingSetViaDownload = async (
     }
     if (statusCallback) statusCallback(log, obj)
   }
+
+  status(`Download mode: Training Set, GCS ${googleCloudStorage ? 'on' : 'off'} `)
 
   const driver = new BotDriver(caps)
   let container = await driver.Build()

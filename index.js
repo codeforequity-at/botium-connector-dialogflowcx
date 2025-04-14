@@ -39,11 +39,39 @@ module.exports = {
     helperText: 'You have to download your <a href="https://cloud.google.com/docs/authentication/getting-started" target="_blank">Google credentials</a> for accessing your Dialogflow CX Agent first. The IAM roles <em>Dialogflow API-Administrator</em> and <em>Dialogflow API-Client</em> are required. Project Id, Agent Id and Location can be found in the <a href="https://cloud.google.com/dialogflow/cx/docs/quick/api" target="_blank">Dialogflow CX Console</a>.',
     capabilities: [
       {
+        name: 'DIALOGFLOWCX_AUTH_MODE',
+        label: 'Authentication Mode',
+        description: 'Determines the authentication method to use.',
+        type: 'string',
+        required: true,
+        advanced: false
+      },
+      {
+        name: 'DIALOGFLOWCX_REFRESH_TOKEN',
+        label: 'OAuth2 Refresh Token',
+        description: 'OAuth2 Refresh Token. Generated via OAuth2 authentication flow.',
+        type: 'string',
+        advanced: true
+      },
+      {
+        name: 'DIALOGFLOWCX_CLIENT_ID',
+        label: 'OAuth2 Client Id',
+        description: 'OAuth2 Client Id.',
+        type: 'string',
+        advanced: true
+      },
+      {
+        name: 'DIALOGFLOWCX_CLIENT_SECRET',
+        label: 'OAuth2 Client Secret',
+        description: 'OAuth2 Client Secret.',
+        type: 'string',
+        advanced: true
+      },
+      {
         name: 'DIALOGFLOWCX_CLIENT_EMAIL',
         label: 'Credentials Client Email',
         description: 'You can find this in the Google Cloud credentials file',
         type: 'string',
-        required: true,
         advanced: false
       },
       {
@@ -51,7 +79,6 @@ module.exports = {
         label: 'Credentials Private Key',
         description: 'You can find this in the Google Cloud credentials file',
         type: 'secret',
-        required: true,
         advanced: false
       },
       {

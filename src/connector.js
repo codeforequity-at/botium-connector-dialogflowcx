@@ -12,6 +12,7 @@ const { struct } = require('../structJson')
 const Capabilities = require('./Capabilities')
 const { pRateLimit } = require('p-ratelimit')
 const { getList, isCommandPage, targetCommand } = require('./helper')
+const { validateOAuth2Caps, createOAuth2Client } = require('./oauth2')
 
 const Defaults = {
   [Capabilities.DIALOGFLOWCX_LANGUAGE_CODE]: 'en',
@@ -30,7 +31,12 @@ class BotiumConnectorDialogflowCX {
 
     if (!this.caps[Capabilities.DIALOGFLOWCX_PROJECT_ID]) throw new Error('DIALOGFLOWCX_PROJECT_ID capability required')
     if (!this.caps[Capabilities.DIALOGFLOWCX_AGENT_ID]) throw new Error('DIALOGFLOWCX_AGENT_ID capability required')
-    if (!!this.caps[Capabilities.DIALOGFLOWCX_CLIENT_EMAIL] !== !!this.caps[Capabilities.DIALOGFLOWCX_PRIVATE_KEY]) throw new Error('DIALOGFLOWCX_CLIENT_EMAIL and DIALOGFLOWCX_PRIVATE_KEY capabilities both or none required')
+
+    if (this.caps[Capabilities.DIALOGFLOWCX_AUTH_MODE] === 'OAuth2') {
+      validateOAuth2Caps(this.caps)
+    } else {
+      if (!!this.caps[Capabilities.DIALOGFLOWCX_CLIENT_EMAIL] !== !!this.caps[Capabilities.DIALOGFLOWCX_PRIVATE_KEY]) throw new Error('DIALOGFLOWCX_CLIENT_EMAIL and DIALOGFLOWCX_PRIVATE_KEY capabilities both or none required')
+    }
   }
 
   async Build () {
@@ -41,8 +47,12 @@ class BotiumConnectorDialogflowCX {
       this.sessionOpts.fallback = true
     }
 
-    if (this.caps[Capabilities.DIALOGFLOWCX_CLIENT_EMAIL] && this.caps[Capabilities.DIALOGFLOWCX_PRIVATE_KEY]) {
-      this.sessionOpts.credentials = {
+    if (this.caps[Capabilities.DIALOGFLOWCX_AUTH_MODE] === 'OAuth2') {
+      debug('Set up OAuth2 authentication')
+      this.sessionOpts.authClient = createOAuth2Client(this.caps)
+    } else if (this.caps[Capabilities.DIALOGFLOWCX_CLIENT_EMAIL] && this.caps[Capabilities.DIALOGFLOWCX_PRIVATE_KEY]) {
+      debug('Set up Service Account authentication')
+      this.sessionOpts.clientOptions = {
         client_email: this.caps[Capabilities.DIALOGFLOWCX_CLIENT_EMAIL],
         private_key: this.caps[Capabilities.DIALOGFLOWCX_PRIVATE_KEY]
       }

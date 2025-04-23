@@ -35,7 +35,7 @@ class BotiumConnectorDialogflowCX {
     if (this.caps[Capabilities.DIALOGFLOWCX_AUTH_MODE] === 'OAuth2') {
       validateOAuth2Caps(this.caps)
     } else {
-      if (!!this.caps[Capabilities.DIALOGFLOWCX_CLIENT_EMAIL] !== !!this.caps[Capabilities.DIALOGFLOWCX_PRIVATE_KEY]) throw new Error('DIALOGFLOWCX_CLIENT_EMAIL and DIALOGFLOWCX_PRIVATE_KEY capabilities both or none required')
+      if (!this.caps[Capabilities.DIALOGFLOWCX_CLIENT_EMAIL] || !this.caps[Capabilities.DIALOGFLOWCX_PRIVATE_KEY]) throw new Error('DIALOGFLOWCX_CLIENT_EMAIL and DIALOGFLOWCX_PRIVATE_KEY capabilities both or none required')
     }
   }
 
@@ -52,7 +52,7 @@ class BotiumConnectorDialogflowCX {
       this.sessionOpts.authClient = createOAuth2Client(this.caps)
     } else if (this.caps[Capabilities.DIALOGFLOWCX_CLIENT_EMAIL] && this.caps[Capabilities.DIALOGFLOWCX_PRIVATE_KEY]) {
       debug('Set up Service Account authentication')
-      this.sessionOpts.clientOptions = {
+      this.sessionOpts.credentials = {
         client_email: this.caps[Capabilities.DIALOGFLOWCX_CLIENT_EMAIL],
         private_key: this.caps[Capabilities.DIALOGFLOWCX_PRIVATE_KEY]
       }

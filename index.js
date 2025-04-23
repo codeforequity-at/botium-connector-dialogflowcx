@@ -11,9 +11,11 @@ const { importHandler, importArgs, exportHandler, exportArgs } = require('./src/
 const { getFlows } = require('./src/api')
 const Capabilities = require('./src/Capabilities')
 const {
-  getList
+  getList,
+  authOpts
 } = require('./src/helper')
 const { pRateLimit } = require('p-ratelimit')
+
 module.exports = {
   PluginVersion: 1,
   Import: {
@@ -126,15 +128,10 @@ module.exports = {
         required: true,
         advanced: false,
         query: async (caps) => {
-          if (caps && caps.DIALOGFLOWCX_CLIENT_EMAIL && caps.DIALOGFLOWCX_PRIVATE_KEY && caps.DIALOGFLOWCX_PROJECT_ID) {
+          const agentsOpts = authOpts(caps)
+          if (agentsOpts && caps.DIALOGFLOWCX_PROJECT_ID) {
             try {
-              const agentsOpts = {
-                projectId: caps.DIALOGFLOWCX_PROJECT_ID,
-                credentials: {
-                  client_email: caps.DIALOGFLOWCX_CLIENT_EMAIL,
-                  private_key: caps.DIALOGFLOWCX_PRIVATE_KEY
-                }
-              }
+              agentsOpts.projectId = caps.DIALOGFLOWCX_PROJECT_ID
               if (caps.DIALOGFLOWCX_LOCATION) {
                 agentsOpts.apiEndpoint = `${caps.DIALOGFLOWCX_LOCATION}-dialogflow.googleapis.com`
               }
@@ -157,15 +154,10 @@ module.exports = {
         required: false,
         advanced: true,
         query: async (caps) => {
-          if (caps && caps.DIALOGFLOWCX_CLIENT_EMAIL && caps.DIALOGFLOWCX_PRIVATE_KEY && caps.DIALOGFLOWCX_PROJECT_ID && caps.DIALOGFLOWCX_AGENT_ID) {
+          const envsOpts = authOpts(caps)
+          if (envsOpts && caps.DIALOGFLOWCX_PROJECT_ID && caps.DIALOGFLOWCX_AGENT_ID) {
             try {
-              const envsOpts = {
-                projectId: caps.DIALOGFLOWCX_PROJECT_ID,
-                credentials: {
-                  client_email: caps.DIALOGFLOWCX_CLIENT_EMAIL,
-                  private_key: caps.DIALOGFLOWCX_PRIVATE_KEY
-                }
-              }
+              envsOpts.projectId = caps.DIALOGFLOWCX_PROJECT_ID
               if (caps.DIALOGFLOWCX_LOCATION) {
                 envsOpts.apiEndpoint = `${caps.DIALOGFLOWCX_LOCATION}-dialogflow.googleapis.com`
               }
@@ -187,15 +179,10 @@ module.exports = {
         required: false,
         advanced: true,
         query: async (caps) => {
-          if (caps && caps.DIALOGFLOWCX_CLIENT_EMAIL && caps.DIALOGFLOWCX_PRIVATE_KEY && caps.DIALOGFLOWCX_PROJECT_ID && caps.DIALOGFLOWCX_AGENT_ID) {
+          const agentsOpts = authOpts(caps)
+          if (agentsOpts && caps.DIALOGFLOWCX_PROJECT_ID && caps.DIALOGFLOWCX_AGENT_ID) {
             try {
-              const agentsOpts = {
-                projectId: caps.DIALOGFLOWCX_PROJECT_ID,
-                credentials: {
-                  client_email: caps.DIALOGFLOWCX_CLIENT_EMAIL,
-                  private_key: caps.DIALOGFLOWCX_PRIVATE_KEY
-                }
-              }
+              agentsOpts.projectId = caps.DIALOGFLOWCX_PROJECT_ID
               if (caps.DIALOGFLOWCX_LOCATION) {
                 agentsOpts.apiEndpoint = `${caps.DIALOGFLOWCX_LOCATION}-dialogflow.googleapis.com`
               }
@@ -238,15 +225,10 @@ module.exports = {
         name: 'GetAgentMetaData',
         description: 'GetAgentMetaData',
         run: async (caps) => {
-          if (caps && caps.DIALOGFLOWCX_CLIENT_EMAIL && caps.DIALOGFLOWCX_PRIVATE_KEY && caps.DIALOGFLOWCX_PROJECT_ID && caps.DIALOGFLOWCX_AGENT_ID) {
+          const agentsOpts = authOpts(caps)
+          if (agentsOpts && caps.DIALOGFLOWCX_PROJECT_ID && caps.DIALOGFLOWCX_AGENT_ID) {
             try {
-              const agentsOpts = {
-                projectId: caps.DIALOGFLOWCX_PROJECT_ID,
-                credentials: {
-                  client_email: caps.DIALOGFLOWCX_CLIENT_EMAIL,
-                  private_key: caps.DIALOGFLOWCX_PRIVATE_KEY
-                }
-              }
+              agentsOpts.projectId = caps.DIALOGFLOWCX_PROJECT_ID
               if (caps.DIALOGFLOWCX_LOCATION) {
                 agentsOpts.apiEndpoint = `${caps.DIALOGFLOWCX_LOCATION}-dialogflow.googleapis.com`
               }
@@ -269,7 +251,8 @@ module.exports = {
         name: 'GetMetaData',
         description: 'Collects global information about the chatbot state, like version, last change, all cases to test, etc',
         run: async (caps) => {
-          if (caps && caps.DIALOGFLOWCX_CLIENT_EMAIL && caps.DIALOGFLOWCX_PRIVATE_KEY && caps.DIALOGFLOWCX_PROJECT_ID && caps.DIALOGFLOWCX_AGENT_ID && caps[Capabilities.DIALOGFLOWCX_EXTRACT_TEST_COVERAGE]) {
+          const opts = authOpts(caps)
+          if (opts && caps.DIALOGFLOWCX_AGENT_ID && caps[Capabilities.DIALOGFLOWCX_EXTRACT_TEST_COVERAGE]) {
             try {
               const limit = pRateLimit({
                 interval: 60 * 1000,
@@ -277,13 +260,7 @@ module.exports = {
                 concurrency: 10,
                 maxDelay: 100000
               })
-              const opts = {
-                projectId: caps.DIALOGFLOWCX_PROJECT_ID,
-                credentials: {
-                  client_email: caps.DIALOGFLOWCX_CLIENT_EMAIL,
-                  private_key: caps.DIALOGFLOWCX_PRIVATE_KEY
-                }
-              }
+              opts.projectId = caps.DIALOGFLOWCX_PROJECT_ID
               if (caps.DIALOGFLOWCX_LOCATION) {
                 opts.apiEndpoint = `${caps.DIALOGFLOWCX_LOCATION}-dialogflow.googleapis.com`
               }

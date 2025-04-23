@@ -1,3 +1,7 @@
+const debug = require('debug')('botium-connector-dialogflowcx-helper')
+
+const { createOAuth2Client, validateOAuth2Caps } = require('./oauth2')
+
 module.exports.countList = async (client, fnc, params = {}) => {
   let nextPageToken
   let result = 0
@@ -59,5 +63,31 @@ module.exports.targetCommand = (pagePath) => {
   }
   if (pagePath.endsWith('/pages/END_FLOW_WITH_FAILURE')) {
     return 'End Flow With Failure'
+  }
+}
+
+module.exports.authOpts = (caps) => {
+  if (!caps) {
+    return
+  }
+
+  if (caps.DIALOGFLOWCX_AUTH_MODE === 'OAuth2') {
+    try {
+      validateOAuth2Caps(caps)
+      return {
+        authClient: createOAuth2Client(caps)
+      }
+    } catch (err) {
+      debug(`Error creating OAuth2 client: ${err.message}`)
+    }
+  } else {
+    if (caps.DIALOGFLOWCX_CLIENT_EMAIL && caps.DIALOGFLOWCX_PRIVATE_KEY) {
+      return {
+        credentials: {
+          client_email: caps.DIALOGFLOWCX_CLIENT_EMAIL,
+          private_key: caps.DIALOGFLOWCX_PRIVATE_KEY
+        }
+      }
+    }
   }
 }

@@ -570,6 +570,20 @@ class BotiumConnectorDialogflowCX {
           setTimeout(() => this.queueBotSays(botMsg), 0)
           messageSent = true
         }
+
+        // UJET custom payload format (inline_button with quick_reply actions)
+        if (responseMessage.payload.ujet?.type === 'inline_button' && responseMessage.payload.ujet.buttons) {
+          const messageText = responseMessage.payload.ujet.title || ''
+          const buttons = responseMessage.payload.ujet.buttons
+            .filter(b => b.title && b.title !== 'disallowEntry')
+            .map(({ title }) => ({
+              text: title,
+              payload: { forceMessageText: title }
+            }))
+          const botMsg = { sender: 'bot', sourceData: response.queryResult, nlp, attachments, messageText, buttons }
+          setTimeout(() => this.queueBotSays(botMsg), 0)
+          messageSent = true
+        }
       }
     }
     if (!messageSent) {

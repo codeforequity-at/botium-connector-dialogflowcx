@@ -143,12 +143,13 @@ const importDialogflowCXIntentsTestSet = async (
         const botMsg = {
           sender: 'bot'
         }
-        const { intent, textResponses } = turn.virtualAgentOutput
-        if (intent) {
+        const { triggeredIntent, textResponses } = turn.virtualAgentOutput
+        const intentName = triggeredIntent && (triggeredIntent.displayName || (triggeredIntent.name && nameFromPath(triggeredIntent.name)))
+        if (intentName) {
           botMsg.asserters = [
             {
               name: 'INTENT',
-              args: [intent]
+              args: [intentName]
             }
           ]
         }
